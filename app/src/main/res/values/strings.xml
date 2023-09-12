@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">gps_app</string>
+    <string name="google_map_api_key">AIzaSyCT57MJDSRB9695ZGn_A-OiJnchyvA0Qws</string>
+    <string name="title_activity_drawing">DrawingActivity</string>
+    <string name="first_fragment_label">First Fragment</string>
+    <string name="second_fragment_label">Second Fragment</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="back">Back</string>
+    <string name="save">Save</string>
+    <string name="clear">Clear</string>
+    <string name="drawing_oldal">drawing oldal</string>
+    <string name="k_vetkez">Következő</string>
+    <string name="map_id">4a538f889c570fe3</string>
+</resources>
