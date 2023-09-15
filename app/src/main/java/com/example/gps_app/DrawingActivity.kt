@@ -30,7 +30,8 @@ class DrawingActivity : AppCompatActivity() {
         //save button
         saveButton.setOnClickListener {
             canvasView.saveDrawingAsSVG(this, "drawing.svg")
-            val mainActivityInstance = MainActivity.getInstance()
+            val intent = Intent(this, Finish::class.java)
+            startActivity(intent)
         }
     }
 }

@@ -9,9 +9,9 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.drawable.PictureDrawable
+import android.graphics.Paint
+import android.graphics.Path
 import android.os.Bundle
-import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
@@ -25,8 +25,6 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
-import org.jsoup.Jsoup
-import org.jsoup.nodes.Document
 import org.opencv.android.OpenCVLoader
 import org.opencv.core.Mat
 import org.opencv.core.MatOfPoint
@@ -36,7 +34,6 @@ import org.opencv.imgcodecs.Imgcodecs
 import org.opencv.imgproc.Imgproc
 import java.io.FileOutputStream
 import java.io.IOException
-import kotlin.math.abs
 
 class MainActivity : FragmentActivity(), OnMapReadyCallback {
 
@@ -116,9 +113,13 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
     }
 
     /*
-        - elkezdtem a kimentést, de egy elvágott képet ad vissza
-        ? meg kéne adni kezdőpontokat, ahonnét elkezdheti a path létrehozását vagy
-            valamit ki kéne találni erre
+        - sikerült kiszedni mindkét átalakított képről a fekete - fehér koordinátákat
+        - a drawing svg átalakítást meg kéne nézni, mert mindig a régebbi svg-t alakítja át, sose az új van!
+        - a fehér pixelek alapján pathdfindingnak kiiundulási pontok létrehozása!
+        - már csak akkor egy pathfinding algoritmust kell implementálni, ami flexibilisen tudja adjustolni a koordinátákat
+            a térkép részletre (forgatás, kicsinyítés, nagyítás és egyes koordináták megváltoztatásával!)
+        - HA ezek megvannak, akkor még 1 oldal beszúrása, amin betöltöm a kész képet és CSŐ
+        - AZTÁN A VÉGÉN ÖSSZEVETHETEM AZ ELKÉSZÜLT RAJZOT AZ EREDITEL ÉS %-OSAN KIÍRNI AZ EGYEZÉST!
     */
 
     private fun convertSnapshotImageOpenCV(context: Context) {
@@ -158,7 +159,6 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
             writer.write("</svg>")
             writer.close()
         }
-
         val svgFilePath = File(context.getExternalFilesDir(null), "gps_app/map_snapshot.svg").path
         val pngFilePath = File(context.getExternalFilesDir(null), "gps_app/map_converted.png").path
         val svgDrawing = File(context.getExternalFilesDir(null), "gps_app/drawing.svg").path
@@ -166,19 +166,14 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
 
         convertSvgToPngExternal(svgFilePath, pngFilePath)
         convertSvgToPngExternal(svgDrawing, pngDrawing)
-
-        val whitePixels = findWhitePixelsCoordinates(pngFilePath)
-        Log.d("MyApp: findWhitePixelsCoordinates() - whitePixels: ", whitePixels.toString())
-        val blackPixelsDrawing = findBlackPixelsCoordinates(pngDrawing)
-        Log.d("MyApp: findBlackPixelsCoordinates() - blackPixelsDrawing: ", blackPixelsDrawing.toString())
     }
 
-    private fun findWhitePixelsCoordinates(pngFilePath: String): List<Point> {
+    fun findWhitePixelsCoordinates(pngFilePath: String): List<android.graphics.Point> {
         // Betöltés Mat objektumba
         val image = Imgcodecs.imread(pngFilePath) // Színes kép beolvasása
 
         // Fehér pixelek kinyerése
-        val whitePixels = mutableListOf<Point>()
+        val whitePixels = mutableListOf<android.graphics.Point>()
 
         for (x in 0 until image.cols()) {
             for (y in 0 until image.rows()) {
@@ -189,7 +184,7 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
 
                 // A pixel csak akkor számít fehérnek, ha az összes színkomponens értéke közel van a maximálishoz (255)
                 if (b > 200.0 && g > 200.0 && r > 200.0) {
-                    whitePixels.add(Point(x.toDouble(), y.toDouble()))
+                    whitePixels.add(android.graphics.Point(x, y))
                 }
             }
         }
@@ -197,12 +192,12 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         return whitePixels
     }
 
-    private fun findBlackPixelsCoordinates(pngFilePath: String): List<Point> {
+    fun findBlackPixelsCoordinates(pngFilePath: String): List<android.graphics.Point> {
         // Betöltés Mat objektumba
         val image = Imgcodecs.imread(pngFilePath) // Színes kép beolvasása
 
         // Fekete pixelek kinyerése
-        val whitePixels = mutableListOf<Point>()
+        val blackPixels = mutableListOf<android.graphics.Point>()
 
         for (x in 0 until image.cols()) {
             for (y in 0 until image.rows()) {
@@ -211,14 +206,14 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
                 val g = pixel[1].toDouble()
                 val r = pixel[2].toDouble()
 
-                // Fekete pixel keresése
+                // A pixel csak akkor számít fekete, ha az összes színkomponens értéke közel van a minimális (0)
                 if (b < 200.0 && g < 200.0 && r < 200.0) {
-                    whitePixels.add(Point(x.toDouble(), y.toDouble()))
+                    blackPixels.add(android.graphics.Point(x, y))
                 }
             }
         }
 
-        return whitePixels
+        return blackPixels
     }
 
     private fun convertSvgToPngExternal(svgFileName: String, pngFileName: String) {
@@ -232,7 +227,7 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         )
 
         val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.WHITE) // Beállítjuk a háttérszínt fehérre
+        canvas.drawColor(Color.WHITE) // Beállítjuk a háttérszínt fehérre (tehát az utak lesznek fehérek)
 
         svg.renderToCanvas(canvas)
 
@@ -240,17 +235,6 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         pngFile.outputStream().use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
-    }
-
-
-    private fun loadSVGFile(context: Context, fileName: String): Document? {
-        try {
-            val file = File(context.getExternalFilesDir(null), "$folderName/$fileName")
-            return Jsoup.parse(file, "UTF-8")
-        } catch (e: IOException) {
-            e.printStackTrace()
-        }
-        return null
     }
 
     private fun showToast(message: String) {

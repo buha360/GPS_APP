@@ -20,12 +20,13 @@
         <activity
             android:name=".DrawingActivity"
             android:exported="false"
-            android:label="@string/title_activity_drawing"
+            android:label="@string/DrawingActivity"
             android:theme="@style/Theme.Gps_app" />
+
         <activity
-            android:name=".ui.theme.DrawingActivity"
+            android:name=".Finish"
             android:exported="false"
-            android:label="@string/title_activity_drawing"
+            android:label="@string/Finish"
             android:theme="@style/Theme.Gps_app" />
 
         <meta-data
