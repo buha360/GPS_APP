@@ -23,8 +23,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val paint = Paint()
     private var lastX: Float = 0f
     private var lastY: Float = 0f
-    private var prevX: Float = 0f
-    private var prevY: Float = 0f
     private var canvasBitmap: Bitmap? = null
     private var drawCanvas: Canvas? = null
     private val brushSize = 8f
@@ -107,12 +105,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 append(pathData[i])
             }
 
-            append("\" fill=\"none\" stroke=\"black\" stroke-width=\"1\" />\n")
+            append("\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n")
             append("</svg>")
         }
 
         try {
             val file = File(folder, filename)
+            if (file.exists()) {
+                file.delete() // Ha már létezik a fájl, törölje
+            }
             val outputStreamWriter = OutputStreamWriter(FileOutputStream(file))
             outputStreamWriter.write(svgContent)
             outputStreamWriter.close()

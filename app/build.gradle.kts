@@ -46,12 +46,14 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "license/README.dom.txt"
         }
     }
 }
 
 dependencies {
 
+    implementation("com.caverock:androidsvg:1.4")
     implementation("org.jsoup:jsoup:1.14.3")
     implementation("androidx.core:core-ktx:1.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.1")

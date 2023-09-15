@@ -31,7 +31,6 @@ class DrawingActivity : AppCompatActivity() {
         saveButton.setOnClickListener {
             canvasView.saveDrawingAsSVG(this, "drawing.svg")
             val mainActivityInstance = MainActivity.getInstance()
-            mainActivityInstance?.readSVGFiles(this) // Az 1. svg file összehasonlítása a 2. svg fileal
         }
     }
 }
