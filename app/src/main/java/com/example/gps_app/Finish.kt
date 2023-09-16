@@ -1,19 +1,28 @@
 package com.example.gps_app
 
 import java.io.File
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.Point
 import android.os.Bundle
-import android.os.PersistableBundle
+import android.util.Log
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.opencv.imgcodecs.Imgcodecs
+import java.io.FileOutputStream
+import java.io.IOException
 
 class Finish  : AppCompatActivity() {
 
+    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.finish)
@@ -26,19 +35,30 @@ class Finish  : AppCompatActivity() {
         // Hozz létre egy Canvas objektumot a Bitmap-re
         val canvas = Canvas(bitmap)
 
-        val mainActivityInstance = MainActivity.getInstance()
-        val pngFilePath = File(this.getExternalFilesDir(null), "gps_app/map_converted.png").path
-        val pngDrawing = File(this.getExternalFilesDir(null), "gps_app/drawing.png").path
+        // Fájl elérési útvonalak inicializálása
+        val pngFilePath = File(getExternalFilesDir("gps_app"), "map_snapshot_converted.png").path
+        val pngDrawing = File(getExternalFilesDir("gps_app"), "drawing_converted.png").path
 
-        // Hozz létre egy új Pathfinder példányt
-        val whitePixels = mainActivityInstance?.findWhitePixelsCoordinates(pngFilePath)
-        val blackPixelsDrawing = mainActivityInstance?.findBlackPixelsCoordinates(pngDrawing)
-        if (whitePixels != null && blackPixelsDrawing != null) {
-            val pathfinder = Pathfinder(whitePixels, blackPixelsDrawing)
-            drawFinishBitmap(pathfinder, canvas)
+        // A feldolgozást Coroutine segítségével végezzük
+        GlobalScope.launch(Dispatchers.IO) {
+            val whitePixels = findWhitePixelsCoordinates(pngFilePath)
+            val blackPixelsDrawing = findBlackPixelsCoordinates(pngDrawing)
 
-            // Itt tedd be a korábban elkészített Bitmap-et az ImageView-be
-            imageView.setImageBitmap(bitmap)
+            if (whitePixels != null && blackPixelsDrawing != null) { // Ellenőrizzük, hogy ne legyenek null értékek
+                val pathPoints = calculatePath(whitePixels, blackPixelsDrawing)
+                Log.d("MyApp: calculatePath() - pathPoints: ", pathPoints.toString())
+                if (pathPoints != null) { // Ellenőrizzük, hogy ne legyen null érték
+                    val pathfinder = Pathfinder(whitePixels, blackPixelsDrawing)
+                    drawFinishBitmap(pathfinder, canvas)
+
+                    // Itt tedd be a korábban elkészített Bitmap-et az ImageView-be
+                    withContext(Dispatchers.Main) {
+                        imageView.setImageBitmap(bitmap)
+                        // Mentés a PNG-fájlba
+                        saveBitmapToFile(bitmap, "finish_image.png")
+                    }
+                }
+            }
         }
     }
 
@@ -66,11 +86,78 @@ class Finish  : AppCompatActivity() {
         canvas.drawPath(path, paint)
     }
 
-    companion object {
-        private var instance: Finish? = null
+    private fun findWhitePixelsCoordinates(pngFilePath: String): List<android.graphics.Point> {
+        // Betöltés Mat objektumba
+        val image = Imgcodecs.imread(pngFilePath) // Színes kép beolvasása
 
-        fun getInstance(): Finish? {
-            return instance
+        // Fehér pixelek kinyerése
+        val whitePixels = mutableListOf<android.graphics.Point>()
+
+        for (x in 0 until image.cols()) {
+            for (y in 0 until image.rows()) {
+                val pixel = image.get(y, x)
+                val b = pixel[0].toDouble()
+                val g = pixel[1].toDouble()
+                val r = pixel[2].toDouble()
+
+                // A pixel csak akkor számít fehérnek, ha az összes színkomponens értéke közel van a maximálishoz (255)
+                if (b > 200.0 && g > 200.0 && r > 200.0) {
+                    whitePixels.add(android.graphics.Point(x, y))
+                }
+            }
+        }
+        Log.d("MyApp: findWhitePixelsCoordinates() - whitePixels: ", whitePixels.toString())
+        return whitePixels
+    }
+
+    private fun findBlackPixelsCoordinates(pngFilePath: String): List<android.graphics.Point> {
+        // Betöltés Mat objektumba
+        val image = Imgcodecs.imread(pngFilePath) // Színes kép beolvasása
+
+        // Fekete pixelek kinyerése
+        val blackPixels = mutableListOf<android.graphics.Point>()
+
+        for (x in 0 until image.cols()) {
+            for (y in 0 until image.rows()) {
+                val pixel = image.get(y, x)
+                val b = pixel[0].toDouble()
+                val g = pixel[1].toDouble()
+                val r = pixel[2].toDouble()
+
+                // A pixel csak akkor számít feketének, ha az összes színkomponens értéke közel van a minimális (0)
+                if (b < 200.0 && g < 200.0 && r < 200.0) {
+                    blackPixels.add(android.graphics.Point(x, y))
+                }
+            }
+        }
+        Log.d("MyApp: findBlackPixelsCoordinates() - blackPixels: ", blackPixels.toString())
+        return blackPixels
+    }
+
+    private fun saveBitmapToFile(bitmap: Bitmap, fileName: String) {
+        val storageDir = File(getExternalFilesDir("gps_app").toString())
+        storageDir.mkdirs()
+
+        val imageFile = File(storageDir, fileName)
+
+        // Fájl mentése a külső tárhelyen
+        try {
+            val stream = FileOutputStream(imageFile)
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
+            stream.flush()
+            stream.close()
+        } catch (e: IOException) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun calculatePath(whitePixels: List<Point>?, blackPixelsDrawing: List<Point>?): List<Point> {
+        if (whitePixels != null && blackPixelsDrawing != null) {
+            val pathfinder = Pathfinder(whitePixels, blackPixelsDrawing)
+            return pathfinder.getPath()
+        } else {
+            // Kezelés, ha a listák null-ok
+            return emptyList()
         }
     }
 }

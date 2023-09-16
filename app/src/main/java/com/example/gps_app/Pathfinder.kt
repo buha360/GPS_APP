@@ -8,6 +8,10 @@ class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: 
     private val visited: MutableSet<Point> = HashSet()
 
     init {
+        if (whitePixels == null || blackPixels == null) {
+            throw IllegalArgumentException("whitePixels and blackPixels must not be null")
+        }
+
         findPath()
     }
 
@@ -18,7 +22,10 @@ class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: 
         queue.add(startNode)
         visited.add(randomStartPoint)
 
-        while (queue.isNotEmpty()) {
+        val maxDepth = 1000 // A maximális mélység számát itt állíthatod be
+        var currentDepth = 0
+
+        while (queue.isNotEmpty() && currentDepth < maxDepth) {
             val currentNode = queue.poll()
             val neighbors = getNeighbors(currentNode!!.point)
 
@@ -29,18 +36,18 @@ class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: 
                     queue.add(newNode)
                 }
             }
-        }
 
-        // claude ai szerint itt van valami ?
-        // lehet asyncelni kell a feladatokat?
+            currentDepth++
+        }
 
         // Reconstruct the path
-        var current = visited.random()
-        while (true) {
-            path.add(current)
-            current = getParent(current)!!
+        if (visited.isNotEmpty()) {
+            var current = visited.random()
+            while (getParent(current) != null) {
+                path.add(current)
+                current = getParent(current)!!
+            }
         }
-
     }
 
     private fun getNeighbors(point: Point): List<Point> {
@@ -66,8 +73,8 @@ class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: 
         val dy = end.y - start.y
         val distance = kotlin.math.sqrt((dx * dx + dy * dy).toDouble())
 
-        val stepX = dx.toInt() / distance.toInt()
-        val stepY = dy.toInt() / distance.toInt()
+        val stepX = dx / distance.toInt()
+        val stepY = dy / distance.toInt()
 
         var x = start.x
         var y = start.y
@@ -95,6 +102,9 @@ class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: 
     }
 
     fun getPath(): List<Point> {
+        if (path.isEmpty()) {
+            return emptyList() // Üres lista visszaadása, ha nincs útvonal
+        }
         return path.reversed()
     }
 

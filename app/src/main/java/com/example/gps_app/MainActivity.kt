@@ -13,7 +13,6 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.os.Bundle
 import android.widget.Button
-import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.FragmentActivity
 import com.caverock.androidsvg.SVG
@@ -25,6 +24,7 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.PolylineOptions
 import org.opencv.android.OpenCVLoader
 import org.opencv.core.Mat
 import org.opencv.core.MatOfPoint
@@ -45,7 +45,6 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.layout)
-        instance = this
 
         val mapFragment = supportFragmentManager.findFragmentById(R.id.mapFragment) as SupportMapFragment
         mapFragment.getMapAsync(this)
@@ -83,6 +82,16 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
             // Engedélyek hiányában engedélykérés indítása
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), LocationPermissionRequest)
         }
+
+        // Custom útvonal rajzolása
+        val polylineOptions = PolylineOptions()
+            .add(LatLng(47.12345, 19.56789))
+            .add(LatLng(47.23456, 19.67890))
+            .add(LatLng(47.34456, 19.98890))
+            .add(LatLng(47.65456, 19.31290))
+            .color(Color.BLUE)
+            .width(5f)
+        mGoogleMap!!.addPolyline(polylineOptions)
     }
 
     private fun captureAndSaveMapSnapshot(context: Context, callback: (success: Boolean) -> Unit) {
@@ -124,13 +133,14 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
 
     private fun convertSnapshotImageOpenCV(context: Context) {
         OpenCVLoader.initDebug()
+
         val imagePath = File(context.getExternalFilesDir(null), "gps_app/map_snapshot.png")
 
         // Betöltés Mat objektumba
         val image = Imgcodecs.imread(imagePath.absolutePath, Imgcodecs.IMREAD_GRAYSCALE) // Átalakítjuk szürkeárnyalatos képpé
 
         // Az alsó rész levágása
-        val cropHeight = image.rows() / 9 // Alsó 9%-át levágni a google logo miatt
+        val cropHeight = image.rows() / 9 // Alsó 9%-át levágni a Google logó miatt
         val croppedImage = image.submat(0, image.rows() - cropHeight, 0, image.cols())
 
         // Csak a fekete vonalak tartása meg
@@ -141,83 +151,44 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         Imgproc.adaptiveThreshold(croppedImage, result, 255.0, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 25, 12.0)
         Imgproc.findContours(result, contours, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
 
-        // Törlés, ha létezik
-        if (imagePath.exists()) {
-            imagePath.delete()
-        }
+        // PNG létrehozása közvetlenül SVG-ből
+        val pngFilePath = "gps_app/map_snapshot_converted.png"
+        val bitmap = Bitmap.createBitmap(
+            croppedImage.cols(),
+            croppedImage.rows(),
+            Bitmap.Config.ARGB_8888
+        )
 
-        imagePath.bufferedWriter().use { writer ->
-            writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"1100\" height=\"740\">\n")
-            for (contour in contours) {
-                val points = ArrayList<Point>(contour.toList())
-                writer.write("<path d=\"M${points[0].x},${points[0].y} ")
-                for (i in 1 until points.size) {
-                    writer.write("L${points[i].x},${points[i].y} ")
-                }
-                writer.write("Z\" fill=\"black\" stroke=\"black\" />\n")
+        val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.WHITE) // Beállítjuk a háttérszínt fehérre
+
+        for (contour in contours) {
+            val points = ArrayList<Point>(contour.toList())
+            val path = Path()
+            path.moveTo(points[0].x.toFloat(), points[0].y.toFloat())
+            for (i in 1 until points.size) {
+                path.lineTo(points[i].x.toFloat(), points[i].y.toFloat())
             }
-            writer.write("</svg>")
-            writer.close()
+            path.close()
+            val paint = Paint()
+            paint.color = Color.BLACK
+            paint.style = Paint.Style.FILL
+            canvas.drawPath(path, paint)
         }
-        val svgFilePath = File(context.getExternalFilesDir(null), "gps_app/map_snapshot.svg").path
-        val pngFilePath = File(context.getExternalFilesDir(null), "gps_app/map_converted.png").path
-        val svgDrawing = File(context.getExternalFilesDir(null), "gps_app/drawing.svg").path
-        val pngDrawing = File(context.getExternalFilesDir(null), "gps_app/drawing.png").path
 
-        convertSvgToPngExternal(svgFilePath, pngFilePath)
-        convertSvgToPngExternal(svgDrawing, pngDrawing)
+        val pngFile = File(context.getExternalFilesDir(null), pngFilePath)
+        pngFile.outputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+        }
+
+        val svgDraw = "gps_app/drawing.svg"
+        val pngDraw =  "gps_app/drawing_converted.png"
+
+        convertSvgToPngExternal(svgDraw, pngDraw)
     }
 
-    fun findWhitePixelsCoordinates(pngFilePath: String): List<android.graphics.Point> {
-        // Betöltés Mat objektumba
-        val image = Imgcodecs.imread(pngFilePath) // Színes kép beolvasása
-
-        // Fehér pixelek kinyerése
-        val whitePixels = mutableListOf<android.graphics.Point>()
-
-        for (x in 0 until image.cols()) {
-            for (y in 0 until image.rows()) {
-                val pixel = image.get(y, x)
-                val b = pixel[0].toDouble()
-                val g = pixel[1].toDouble()
-                val r = pixel[2].toDouble()
-
-                // A pixel csak akkor számít fehérnek, ha az összes színkomponens értéke közel van a maximálishoz (255)
-                if (b > 200.0 && g > 200.0 && r > 200.0) {
-                    whitePixels.add(android.graphics.Point(x, y))
-                }
-            }
-        }
-
-        return whitePixels
-    }
-
-    fun findBlackPixelsCoordinates(pngFilePath: String): List<android.graphics.Point> {
-        // Betöltés Mat objektumba
-        val image = Imgcodecs.imread(pngFilePath) // Színes kép beolvasása
-
-        // Fekete pixelek kinyerése
-        val blackPixels = mutableListOf<android.graphics.Point>()
-
-        for (x in 0 until image.cols()) {
-            for (y in 0 until image.rows()) {
-                val pixel = image.get(y, x)
-                val b = pixel[0].toDouble()
-                val g = pixel[1].toDouble()
-                val r = pixel[2].toDouble()
-
-                // A pixel csak akkor számít fekete, ha az összes színkomponens értéke közel van a minimális (0)
-                if (b < 200.0 && g < 200.0 && r < 200.0) {
-                    blackPixels.add(android.graphics.Point(x, y))
-                }
-            }
-        }
-
-        return blackPixels
-    }
-
-    private fun convertSvgToPngExternal(svgFileName: String, pngFileName: String) {
-        val svgFile = File(svgFileName)
+    private fun convertSvgToPngExternal(svgFilePath: String, pngFilePath: String) {
+        val svgFile = File(this.getExternalFilesDir(null), svgFilePath)
         val svg = SVG.getFromInputStream(svgFile.inputStream())
 
         val bitmap = Bitmap.createBitmap(
@@ -227,25 +198,13 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         )
 
         val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.WHITE) // Beállítjuk a háttérszínt fehérre (tehát az utak lesznek fehérek)
+        canvas.drawColor(Color.WHITE) // Beállítjuk a háttérszínt fehérre
 
         svg.renderToCanvas(canvas)
 
-        val pngFile = File(pngFileName)
+        val pngFile = File(this.getExternalFilesDir(null), pngFilePath)
         pngFile.outputStream().use { out ->
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-    }
-
-    private fun showToast(message: String) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
-    }
-
-    companion object {
-        private var instance: MainActivity? = null
-
-        fun getInstance(): MainActivity? {
-            return instance
         }
     }
 }
