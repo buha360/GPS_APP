@@ -26,14 +26,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var canvasBitmap: Bitmap? = null
     private var drawCanvas: Canvas? = null
     private val brushSize = 8f
-    private val pathData = ArrayList<String>()
+    val pathData = ArrayList<String>()
 
     init {
         setupDrawing()
     }
 
     private fun setupDrawing() {
-        paint.color = Color.BLACK
+        paint.color = Color.WHITE // Fehér ecsetszín
         paint.isAntiAlias = true
         paint.strokeWidth = brushSize
         paint.style = Paint.Style.STROKE
@@ -45,6 +45,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         super.onSizeChanged(w, h, oldw, oldh)
         canvasBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         drawCanvas = Canvas(canvasBitmap!!)
+        drawCanvas?.drawColor(Color.BLACK) // Fekete háttér beállítása
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -71,8 +72,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 pathData.add("L $x $y") // Vonalszakasz hozzáadása a pathData-hoz
             }
             MotionEvent.ACTION_UP -> {
-                drawCanvas?.drawPath(path, paint)
-                path.reset()
                 pathData.add("Z") // Zárási parancs hozzáadása a pathData-hoz
             }
             else -> return false
@@ -82,9 +81,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return true
     }
 
-
     fun clearCanvas() {
-        drawCanvas?.drawColor(Color.WHITE, PorterDuff.Mode.CLEAR)
+        drawCanvas?.drawColor(Color.BLACK) // Fekete hátterűvé teszi a canvas-t
         pathData.clear()
         invalidate()
     }
@@ -98,14 +96,14 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         val svgContent = buildString {
             append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
-            append("<svg width=\"${width}px\" height=\"${height}px\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">\n")
+            append("<svg width=\"${width}px\" height=\"${height}px\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background-color:black\">\n")
             append("<path d=\"")
 
             for (i in 0 until pathData.size) {
                 append(pathData[i])
             }
 
-            append("\" fill=\"none\" stroke=\"black\" stroke-width=\"2\" />\n")
+            append("\" stroke=\"white\" stroke-width=\"2\" />\n")
             append("</svg>")
         }
 

@@ -198,7 +198,7 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         )
 
         val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.WHITE) // Beállítjuk a háttérszínt fehérre
+        canvas.drawColor(Color.BLACK) // Beállítjuk a háttérszínt feketére
 
         svg.renderToCanvas(canvas)
 

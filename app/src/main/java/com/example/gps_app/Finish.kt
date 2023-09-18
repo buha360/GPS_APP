@@ -41,14 +41,14 @@ class Finish  : AppCompatActivity() {
 
         // A feldolgozást Coroutine segítségével végezzük
         GlobalScope.launch(Dispatchers.IO) {
-            val whitePixels = findWhitePixelsCoordinates(pngFilePath)
-            val blackPixelsDrawing = findBlackPixelsCoordinates(pngDrawing)
+            val whitePixelsMap = findWhitePixelsCoordinates(pngFilePath)
+            val WhitePixelsDrawing = findWhitePixelsCoordinates(pngDrawing)
 
-            if (whitePixels != null && blackPixelsDrawing != null) { // Ellenőrizzük, hogy ne legyenek null értékek
-                val pathPoints = calculatePath(whitePixels, blackPixelsDrawing)
+            if (whitePixelsMap != null && WhitePixelsDrawing != null) { // Ellenőrizzük, hogy ne legyenek null értékek
+                val pathPoints = calculatePath(whitePixelsMap, WhitePixelsDrawing)
                 Log.d("MyApp: calculatePath() - pathPoints: ", pathPoints.toString())
                 if (pathPoints != null) { // Ellenőrizzük, hogy ne legyen null érték
-                    val pathfinder = Pathfinder(whitePixels, blackPixelsDrawing)
+                    val pathfinder = Pathfinder(whitePixelsMap, WhitePixelsDrawing)
                     drawFinishBitmap(pathfinder, canvas)
 
                     // Itt tedd be a korábban elkészített Bitmap-et az ImageView-be
@@ -108,30 +108,6 @@ class Finish  : AppCompatActivity() {
         }
         Log.d("MyApp: findWhitePixelsCoordinates() - whitePixels: ", whitePixels.toString())
         return whitePixels
-    }
-
-    private fun findBlackPixelsCoordinates(pngFilePath: String): List<android.graphics.Point> {
-        // Betöltés Mat objektumba
-        val image = Imgcodecs.imread(pngFilePath) // Színes kép beolvasása
-
-        // Fekete pixelek kinyerése
-        val blackPixels = mutableListOf<android.graphics.Point>()
-
-        for (x in 0 until image.cols()) {
-            for (y in 0 until image.rows()) {
-                val pixel = image.get(y, x)
-                val b = pixel[0].toDouble()
-                val g = pixel[1].toDouble()
-                val r = pixel[2].toDouble()
-
-                // A pixel csak akkor számít feketének, ha az összes színkomponens értéke közel van a minimális (0)
-                if (b < 200.0 && g < 200.0 && r < 200.0) {
-                    blackPixels.add(android.graphics.Point(x, y))
-                }
-            }
-        }
-        Log.d("MyApp: findBlackPixelsCoordinates() - blackPixels: ", blackPixels.toString())
-        return blackPixels
     }
 
     private fun saveBitmapToFile(bitmap: Bitmap, fileName: String) {

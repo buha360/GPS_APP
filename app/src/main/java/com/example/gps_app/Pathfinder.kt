@@ -3,49 +3,40 @@ package com.example.gps_app
 import android.graphics.Point
 import java.util.*
 
-class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: List<Point>) {
+class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: List<Point>, private val extensionFactor: Double = 1.2) {
     private val path: MutableList<Point> = mutableListOf()
-    private val visited: MutableSet<Point> = HashSet()
 
     init {
-        if (whitePixels == null || blackPixels == null) {
-            throw IllegalArgumentException("whitePixels and blackPixels must not be null")
-        }
-
         findPath()
     }
 
     private fun findPath() {
-        val randomStartPoint = whitePixels.random()
-        val startNode = Node(randomStartPoint, null)
-        val queue: Queue<Node> = LinkedList()
-        queue.add(startNode)
-        visited.add(randomStartPoint)
+        val startPoint = whitePixels.firstOrNull()
+        if (startPoint != null) {
+            path.add(startPoint)
 
-        val maxDepth = 1000 // A maximális mélység számát itt állíthatod be
-        var currentDepth = 0
+            while (true) {
+                val lastPoint = path.lastOrNull() ?: break
+                val neighbors = getNeighbors(lastPoint)
 
-        while (queue.isNotEmpty() && currentDepth < maxDepth) {
-            val currentNode = queue.poll()
-            val neighbors = getNeighbors(currentNode!!.point)
+                var nextPoint: Point? = null
+                var minDistance = Double.MAX_VALUE
 
-            for (neighbor in neighbors) {
-                if (!visited.contains(neighbor) && isPathClear(currentNode.point, neighbor)) {
-                    visited.add(neighbor)
-                    val newNode = Node(neighbor, currentNode)
-                    queue.add(newNode)
+                for (neighbor in neighbors) {
+                    if (!path.contains(neighbor) && isPathClear(lastPoint, neighbor)) {
+                        val distance = calculateDistance(neighbor, startPoint)
+                        if (distance < minDistance) {
+                            minDistance = distance
+                            nextPoint = neighbor
+                        }
+                    }
                 }
-            }
 
-            currentDepth++
-        }
-
-        // Reconstruct the path
-        if (visited.isNotEmpty()) {
-            var current = visited.random()
-            while (getParent(current) != null) {
-                path.add(current)
-                current = getParent(current)!!
+                if (nextPoint != null) {
+                    path.add(nextPoint)
+                } else {
+                    break
+                }
             }
         }
     }
@@ -92,21 +83,26 @@ class Pathfinder(private val whitePixels: List<Point>, private val blackPixels: 
         return true
     }
 
-    private fun getParent(point: Point): Point? {
-        for (i in path.indices) {
-            if (path[i] == point) {
-                return if (i > 0) path[i - 1] else null
-            }
-        }
-        return null
+    private fun calculateDistance(point1: Point, point2: Point): Double {
+        val dx = point2.x - point1.x
+        val dy = point2.y - point1.y
+        return kotlin.math.sqrt((dx * dx + dy * dy).toDouble())
     }
 
     fun getPath(): List<Point> {
-        if (path.isEmpty()) {
-            return emptyList() // Üres lista visszaadása, ha nincs útvonal
+        // Extend or shorten the path based on the extensionFactor
+        val extendedPath = mutableListOf<Point>()
+        for (i in 0 until path.size - 1) {
+            val point1 = path[i]
+            val point2 = path[i + 1]
+            val dx = point2.x - point1.x
+            val dy = point2.y - point1.y
+            val extendedX = (point2.x + dx * extensionFactor).toInt()
+            val extendedY = (point2.y + dy * extensionFactor).toInt()
+            extendedPath.add(point1)
+            extendedPath.add(Point(extendedX, extendedY))
         }
-        return path.reversed()
+        extendedPath.add(path.last())
+        return extendedPath
     }
-
-    data class Node(val point: Point, val parent: Node?)
 }
