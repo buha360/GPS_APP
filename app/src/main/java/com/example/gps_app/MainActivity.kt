@@ -41,6 +41,7 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private val LocationPermissionRequest = 1001
     private val folderName = "gps_app"
+    val pathData = ArrayList<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -82,16 +83,6 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
             // Engedélyek hiányában engedélykérés indítása
             ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), LocationPermissionRequest)
         }
-
-        // Custom útvonal rajzolása
-        val polylineOptions = PolylineOptions()
-            .add(LatLng(47.12345, 19.56789))
-            .add(LatLng(47.23456, 19.67890))
-            .add(LatLng(47.34456, 19.98890))
-            .add(LatLng(47.65456, 19.31290))
-            .color(Color.BLUE)
-            .width(5f)
-        mGoogleMap!!.addPolyline(polylineOptions)
     }
 
     private fun captureAndSaveMapSnapshot(context: Context, callback: (success: Boolean) -> Unit) {
@@ -120,16 +111,6 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
             }
         }
     }
-
-    /*
-        - sikerült kiszedni mindkét átalakított képről a fekete - fehér koordinátákat
-        - a drawing svg átalakítást meg kéne nézni, mert mindig a régebbi svg-t alakítja át, sose az új van!
-        - a fehér pixelek alapján pathdfindingnak kiiundulási pontok létrehozása!
-        - már csak akkor egy pathfinding algoritmust kell implementálni, ami flexibilisen tudja adjustolni a koordinátákat
-            a térkép részletre (forgatás, kicsinyítés, nagyítás és egyes koordináták megváltoztatásával!)
-        - HA ezek megvannak, akkor még 1 oldal beszúrása, amin betöltöm a kész képet és CSŐ
-        - AZTÁN A VÉGÉN ÖSSZEVETHETEM AZ ELKÉSZÜLT RAJZOT AZ EREDITEL ÉS %-OSAN KIÍRNI AZ EGYEZÉST!
-    */
 
     private fun convertSnapshotImageOpenCV(context: Context) {
         OpenCVLoader.initDebug()

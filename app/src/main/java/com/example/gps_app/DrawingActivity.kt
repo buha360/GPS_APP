@@ -37,7 +37,7 @@ class DrawingActivity : AppCompatActivity() {
             val svgFileName = "drawing.svg" // Cseréld le a megfelelő SVG fájl nevére
             val canvasView = findViewById<CanvasView>(R.id.canvasView)
             val pathfinder = SVGPathfinder(canvasView.pathData)
-            pathfinder.asd()
+            pathfinder.SVGToGraph()
             //Log.d("MyApp: findWhitePaths() - drawingPath: ", drawingPath.toString())
         }
     }
