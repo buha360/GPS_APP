@@ -12,6 +12,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.os.Bundle
+import android.util.Log
 import android.widget.Button
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.FragmentActivity
@@ -41,7 +42,10 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private val LocationPermissionRequest = 1001
     private val folderName = "gps_app"
-    val pathData = ArrayList<String>()
+
+    object DataHolder {
+        var pathData = ArrayList<String>()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -146,11 +150,21 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         for (contour in contours) {
             val points = ArrayList<Point>(contour.toList())
             val path = Path()
-            path.moveTo(points[0].x.toFloat(), points[0].y.toFloat())
+            val svgPathData = StringBuilder("M") // "M" az "move to" SVG parancs
+
+            if (points.isNotEmpty()) {
+                svgPathData.append("${points[0].x},${points[0].y}")  // Kezdőpont hozzáadása
+            }
+
             for (i in 1 until points.size) {
                 path.lineTo(points[i].x.toFloat(), points[i].y.toFloat())
+                svgPathData.append(" L ${points[i].x},${points[i].y}") // "L" az "line to" SVG parancs
             }
+
             path.close()
+            svgPathData.append(" Z") // "Z" az "close path" SVG parancs
+            DataHolder.pathData.add(svgPathData.toString()) // SVG path adat hozzáadása az osztályszintű változóhoz
+
             val paint = Paint()
             paint.color = Color.BLACK
             paint.style = Paint.Style.FILL
@@ -188,4 +202,5 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
         }
     }
+
 }

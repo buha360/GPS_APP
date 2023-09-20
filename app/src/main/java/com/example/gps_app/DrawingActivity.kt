@@ -1,9 +1,12 @@
 package com.example.gps_app
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
+import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
 
 class DrawingActivity : AppCompatActivity() {
@@ -24,21 +27,15 @@ class DrawingActivity : AppCompatActivity() {
 
         //back button
         backButton.setOnClickListener {
-            val intent = Intent(this,MainActivity::class.java)
+            val intent = Intent(this,MainActivity::class.java) // MainActivity újraindítása
             startActivity(intent)
         }
 
         //save button
         saveButton.setOnClickListener {
             canvasView.saveDrawingAsSVG(this, "drawing.svg")
-            //val intent = Intent(this, Finish::class.java)
-            //startActivity(intent)
-
-            val svgFileName = "drawing.svg" // Cseréld le a megfelelő SVG fájl nevére
-            val canvasView = findViewById<CanvasView>(R.id.canvasView)
-            val pathfinder = SVGPathfinder(canvasView.pathData)
-            pathfinder.SVGToGraph()
-            //Log.d("MyApp: findWhitePaths() - drawingPath: ", drawingPath.toString())
+            val intent = Intent(this, Finish::class.java) // Finish indítása
+            startActivity(intent)
         }
     }
 }

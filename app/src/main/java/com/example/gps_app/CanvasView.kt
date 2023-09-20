@@ -28,6 +28,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private val brushSize = 8f
     val pathData = ArrayList<String>()
 
+    object DataHolder {
+        var pathData = ArrayList<String>()
+    }
+
     init {
         setupDrawing()
     }
@@ -93,6 +97,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         if (!folder.exists()) {
             folder.mkdirs()
         }
+
+        DataHolder.pathData = pathData
 
         val svgContent = buildString {
             append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")

@@ -1,88 +1,81 @@
 package com.example.gps_app
 
-import java.io.File
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
-import android.graphics.Point
 import android.os.Bundle
 import android.util.Log
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
-import kotlinx.coroutines.DelicateCoroutinesApi
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import org.opencv.imgcodecs.Imgcodecs
-import java.io.FileOutputStream
-import java.io.IOException
 
 class Finish  : AppCompatActivity() {
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.finish)
 
-        val imageView = findViewById<ImageView>(R.id.imageViewFinish)
+        val SVGtoGraphDraw = SVGtoGraph(CanvasView.DataHolder.pathData)
+        val finishedDrawGraph = SVGtoGraphDraw.SVGToGraph() // Feltételezem, hogy ezt visszaadja a metódus
+        Log.d("MyApp: - finishedDrawGraph: ", finishedDrawGraph.toString())
 
-        // Hozz létre egy üres Bitmap-et a kép méretével
-        val bitmap = Bitmap.createBitmap(300, 400, Bitmap.Config.ARGB_8888)
+        val SVGtoGraphMap = SVGtoGraph(MainActivity.DataHolder.pathData)
+        val finishedDrawMap = SVGtoGraphMap.SVGToGraph() // Feltételezem, hogy ezt visszaadja a metódus
+        Log.d("MyApp: - finishedDrawMap: ", finishedDrawMap.toString())
 
-        // Hozz létre egy Canvas objektumot a Bitmap-re
+        val compare = CompareGraphs(this, finishedDrawGraph, finishedDrawMap)
+        val bestMatch = compare.alignGraphs()
+        Log.d("MyApp: - bestMatch: ", bestMatch.toString())
+
+        // Új Bitmap és Canvas létrehozása
+        val bitmap = Bitmap.createBitmap(400, 500, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        canvas.drawColor(Color.BLACK)
 
-        // Fájl elérési útvonalak inicializálása
-        val pngFilePath = File(getExternalFilesDir("gps_app"), "map_snapshot_converted.png").path
-        val pngDrawing = File(getExternalFilesDir("gps_app"), "drawing_converted.png").path
-
-        // A feldolgozást Coroutine segítségével végezzük
-        GlobalScope.launch(Dispatchers.IO) {
-
+        val paint = Paint().apply {
+            color = Color.RED
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
         }
-    }
 
-    private fun drawFinishBitmap(/*pathfinder: Pathfinder,*/ canvas: Canvas) {
-        // Hozz létre egy Paint objektumot a vonal stílusának beállításához
-        val paint = Paint()
-        paint.color = Color.RED // Választhatod a vonal színét
-        paint.strokeWidth = 2f // Választhatod a vonal vastagságát
+        // Kirajzoljuk az igazított gráfot
+        var minX = Float.MAX_VALUE
+        var minY = Float.MAX_VALUE
+        var maxX = Float.MIN_VALUE
+        var maxY = Float.MIN_VALUE
 
-        // Hozz létre egy új Path objektumot az útvonalhoz
-        val path = Path()
+        for (edge in bestMatch) {
+            val from = edge.from
+            val to = edge.to
 
-        // Iterálj végig az útvonalon és add hozzá a Path-hoz a pontokat
-        /*val pathPoints = pathfinder.getPath()
-        for (i in pathPoints.indices) {
-            val point = pathPoints[i]
-            if (i == 0) {
-                path.moveTo(point.x.toFloat(), point.y.toFloat())
-            } else {
-                path.lineTo(point.x.toFloat(), point.y.toFloat())
-            }
-        }*/
-
-        // Rajzold meg az útvonalat a Canvas-re a Path és a Paint segítségével
-        canvas.drawPath(path, paint)
-    }
-
-    private fun saveBitmapToFile(bitmap: Bitmap, fileName: String) {
-        val storageDir = File(getExternalFilesDir("gps_app").toString())
-        storageDir.mkdirs()
-
-        val imageFile = File(storageDir, fileName)
-
-        // Fájl mentése a külső tárhelyen
-        try {
-            val stream = FileOutputStream(imageFile)
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
-            stream.flush()
-            stream.close()
-        } catch (e: IOException) {
-            e.printStackTrace()
+            minX = minOf(minX, from.x, to.x)
+            minY = minOf(minY, from.y, to.y)
+            maxX = maxOf(maxX, from.x, to.x)
+            maxY = maxOf(maxY, from.y, to.y)
         }
+
+        val scaleX = canvas.width / (maxX - minX)
+        val scaleY = canvas.height / (maxY - minY)
+        val offsetX = -minX
+        val offsetY = -minY
+
+        for (edge in bestMatch) {
+            val from = edge.from
+            val to = edge.to
+
+            val adjustedFromX = (from.x + offsetX) * scaleX
+            val adjustedFromY = (from.y + offsetY) * scaleY
+            val adjustedToX = (to.x + offsetX) * scaleX
+            val adjustedToY = (to.y + offsetY) * scaleY
+
+            Log.d("MyApp: - Adjusted from: ", "($adjustedFromX, $adjustedFromY)")
+            Log.d("MyApp: - Adjusted to: ", "($adjustedToX, $adjustedToY)")
+
+            canvas.drawLine(adjustedFromX, adjustedFromY, adjustedToX, adjustedToY, paint)
+        }
+
+        // UI frissítése a fő szálon
+        val imageView = findViewById<ImageView>(R.id.imageViewFinish)
+        imageView.setImageBitmap(bitmap)
     }
 }
