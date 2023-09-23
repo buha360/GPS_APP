@@ -86,8 +86,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     fun clearCanvas() {
-        drawCanvas?.drawColor(Color.BLACK) // Fekete hátterűvé teszi a canvas-t
         pathData.clear()
+        drawCanvas?.drawColor(Color.BLACK) // Fekete hátterűvé teszi a canvas-t
         invalidate()
     }
 

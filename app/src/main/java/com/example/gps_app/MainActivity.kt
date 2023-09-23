@@ -130,14 +130,12 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
 
         // Csak a fekete vonalak tartása meg
         val result = Mat()
-        Core.inRange(croppedImage, Scalar(0.0), Scalar(10.0), result) // A 0.0 és 100.0 határok az értékfüggőek lehetnek, módosítsd szükség szerint
+        Core.inRange(croppedImage, Scalar(0.0), Scalar(25.0), result) // A 0.0 és 100.0 határok az értékfüggőek lehetnek, módosítsd szükség szerint
 
         val contours = ArrayList<MatOfPoint>()
-        Imgproc.adaptiveThreshold(croppedImage, result, 255.0, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 25, 12.0)
+        Imgproc.adaptiveThreshold(croppedImage, result, 255.0, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 25, 20.0)
         Imgproc.findContours(result, contours, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
 
-        // PNG létrehozása közvetlenül SVG-ből
-        val pngFilePath = "gps_app/map_snapshot_converted.png"
         val bitmap = Bitmap.createBitmap(
             croppedImage.cols(),
             croppedImage.rows(),
@@ -170,37 +168,5 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
             paint.style = Paint.Style.FILL
             canvas.drawPath(path, paint)
         }
-
-        val pngFile = File(context.getExternalFilesDir(null), pngFilePath)
-        pngFile.outputStream().use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-
-        val svgDraw = "gps_app/drawing.svg"
-        val pngDraw =  "gps_app/drawing_converted.png"
-
-        convertSvgToPngExternal(svgDraw, pngDraw)
     }
-
-    private fun convertSvgToPngExternal(svgFilePath: String, pngFilePath: String) {
-        val svgFile = File(this.getExternalFilesDir(null), svgFilePath)
-        val svg = SVG.getFromInputStream(svgFile.inputStream())
-
-        val bitmap = Bitmap.createBitmap(
-            svg.documentWidth.toInt(),
-            svg.documentHeight.toInt(),
-            Bitmap.Config.ARGB_8888
-        )
-
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.BLACK) // Beállítjuk a háttérszínt feketére
-
-        svg.renderToCanvas(canvas)
-
-        val pngFile = File(this.getExternalFilesDir(null), pngFilePath)
-        pngFile.outputStream().use { out ->
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
-        }
-    }
-
 }
