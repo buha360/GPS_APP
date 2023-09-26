@@ -1,25 +1,24 @@
 package com.example.gps_app
 
+import android.util.Log
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.sqrt
 
-/*
-    Valószínű, hogy adjustolni kell még és jobb stratégiát kitalálni erre a problémára
-    Lehetne az, hogy ahol talál matchScore()-t, ott rögtön elkezdhetnénk az útbejárást a graphMap alapján
-    Végigmegyünk tranformációs szabályokkal és ha sikeres a bejárás, akkor elmentjük egy listába az egyezési arányával együtt, ha nem
-    Akkor eldobjuk az útvonalat és ugrunk a következőre ?
- */
+class CompareGraphs(private val graphDraw: List<SVGtoGraph.Edge>, private val graphMap: List<SVGtoGraph.Edge>) {
 
-class CompareGraphs(private val graphDraw: MutableList<SVGtoGraph.Edge>, private val graphMap: MutableList<SVGtoGraph.Edge>) {
-    class Node(val point: SVGtoGraph.Point) {
-        val edges = mutableListOf<Edge>()
+    data class Node(val point: SVGtoGraph.Point) {
+        var distance = Double.MAX_VALUE
+        var visited = false
+        var previous: Node? = null
     }
-
-    class Edge(val from: Node, val to: Node, val weight: Double)
 
     private fun distance(p1: SVGtoGraph.Point, p2: SVGtoGraph.Point): Double {
         return sqrt(((p2.x - p1.x) * (p2.x - p1.x) + (p2.y - p1.y) * (p2.y - p1.y)).toDouble())
+    }
+
+    private fun edgeWeight(drawEdge: SVGtoGraph.Edge, mapEdge: SVGtoGraph.Edge): Double {
+        return 1.0 / matchScore(drawEdge, mapEdge)
     }
 
     private fun matchScore(e1: SVGtoGraph.Edge, e2: SVGtoGraph.Edge): Double {
@@ -34,62 +33,58 @@ class CompareGraphs(private val graphDraw: MutableList<SVGtoGraph.Edge>, private
         val startDistance = distance(e1.from, e2.from)
         val endDistance = distance(e1.to, e2.to)
 
-        val score = 0.3 * lengthDiff + 0.3 * angleDiff + 0.3 * startDistance + 0.3 * endDistance
-        return 1.0 - minOf(score, 0.6)
+        val score = 0.3 * lengthDiff + 0.3 * angleDiff + 0.4 * startDistance + 0.4 * endDistance
+        return 1.0 - minOf(score, 0.5)
     }
 
-    fun findMatchingEdges(): MutableList<SVGtoGraph.Edge> {
-        val matchedEdges = mutableListOf<SVGtoGraph.Edge>()
+    fun dijkstra(start: SVGtoGraph.Point, end: SVGtoGraph.Point): List<SVGtoGraph.Edge> {
+        val nodes = graphMap.flatMap { listOf(it.from, it.to) }
+            .distinct()
+            .map { Node(it) }
+            .associateBy { it.point }
 
-        for (edgeDraw in graphDraw) {
-            for (edgeMap in graphMap) {
-                if (matchScore(edgeDraw, edgeMap) >= 0.3) {
-                    matchedEdges.add(edgeMap)
+        nodes[start]?.distance = 0.0
+
+        while (true) {
+            val currentNode = nodes.values
+                .filterNot { it.visited }
+                .minByOrNull { it.distance } ?: break
+
+            currentNode.visited = true
+
+            val neighbors = graphMap
+                .filter { it.from == currentNode.point || it.to == currentNode.point }
+                .mapNotNull { edge ->
+                    val neighborPoint = if (edge.from == currentNode.point) edge.to else edge.from
+                    val drawEdge = SVGtoGraph.Edge(currentNode.point, neighborPoint)
+                    nodes[neighborPoint]?.let { node -> Pair(node, edgeWeight(drawEdge, edge)) }
+                }
+
+            for ((neighbor, weight) in neighbors) {
+                if (currentNode.distance + weight < neighbor.distance) {
+                    neighbor.distance = currentNode.distance + weight
+                    neighbor.previous = currentNode
                 }
             }
         }
 
-        return matchedEdges
+        val path = mutableListOf<SVGtoGraph.Edge>()
+        var current = nodes[end]
+        while (current?.previous != null) {
+            val previous = current.previous!!
+            path.add(SVGtoGraph.Edge(current.point, previous.point))
+            current = previous
+        }
+
+        return path.reversed()
     }
 
-    fun constructGraph(): Pair<List<Node>, List<Edge>> {
-        val nodes = graphMap.flatMap { listOf(it.from, it.to) }
-            .distinctBy { it.x to it.y }
-            .map { Node(it) }
+    fun findPath(): List<SVGtoGraph.Edge> {
+        val start = graphDraw.first().from
+        Log.d("MyApp: - start: ", start.toString())
+        val end = graphDraw.last().to
+        Log.d("MyApp: - end: ", end.toString())
 
-        val edges = graphMap.map { edge ->
-            val fromNode = nodes.first { node -> node.point == edge.from }
-            val toNode = nodes.first { node -> node.point == edge.to }
-            Edge(fromNode, toNode, distance(edge.from, edge.to))
-        }
-
-        for (edge in edges) {
-            edge.from.edges.add(edge)
-            edge.to.edges.add(edge)
-        }
-
-        return Pair(nodes, edges)
-    }
-
-    fun dijkstra(start: SVGtoGraph.Point, nodes: List<Node>): Map<SVGtoGraph.Point, Double> {
-        val distances = nodes.associateBy({ it.point }, { Double.POSITIVE_INFINITY }).toMutableMap()
-        val visited = nodes.associateBy({ it.point }, { false }).toMutableMap()
-        distances[start] = 0.0
-
-        while (true) {
-            val current = distances.filterNot { visited[it.key] == true }.minByOrNull { it.value }?.key ?: break
-
-            val currentDist = distances[current] ?: continue
-            val neighbors = nodes.first { it.point == current }.edges.map { it.to.point }
-
-            for (neighbor in neighbors) {
-                val newDist = currentDist + (distances[neighbor] ?: Double.POSITIVE_INFINITY)
-                distances[neighbor] = minOf(distances[neighbor] ?: Double.POSITIVE_INFINITY, newDist)
-            }
-
-            visited[current] = true
-        }
-
-        return distances
+        return dijkstra(start, end)
     }
 }

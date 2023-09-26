@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.util.Log
 import android.widget.ImageView
 import androidx.appcompat.app.AppCompatActivity
+import com.example.gps_app.MainActivity.DataHolder.detectedCorners
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,29 +29,26 @@ class Finish  : AppCompatActivity() {
     }
 
     private suspend fun calculateBestMatch() {
-        val SVGtoGraphDraw = SVGtoGraph(CanvasView.DataHolder.pathData)
-        val finishedDrawGraph = SVGtoGraphDraw.SVGToGraph()
+        val detectedCornersConverted = detectedCorners.map { SVGtoGraph.Point(it.x.toFloat(), it.y.toFloat()) }
+        val SVGtoGraphDraw = SVGtoGraph(MainActivity.DataHolder.pathData, detectedCornersConverted)
+        val finishedDrawGraph = SVGtoGraphDraw.processPathData(false)
         Log.d("MyApp: - finishedDrawGraph: ", finishedDrawGraph.toString())
 
-        val SVGtoGraphMap = SVGtoGraph(MainActivity.DataHolder.pathData)
-        val finishedDrawMap = SVGtoGraphMap.SVGToGraph()
+        val SVGtoGraphMap = SVGtoGraph(MainActivity.DataHolder.pathData, detectedCornersConverted)
+        val finishedDrawMap = SVGtoGraphMap.processPathData(true)
         Log.d("MyApp: - finishedDrawMap: ", finishedDrawMap.toString())
+
+        val svgContent = SVGtoGraphMap.createSVGFromGraph()
+        val svgFile = File(getExternalFilesDir(null), "output_graph.svg")
+        svgFile.writeText(svgContent)
 
         val compare = CompareGraphs(finishedDrawGraph, finishedDrawMap)
 
         // Megkeressük az összehasonlító éleket
-        val bestMatch = compare.findMatchingEdges()
+        val bestMatch = compare.findPath()
         Log.d("MyApp: - bestMatch: ", bestMatch.toString())
 
-        // Gráfot építünk az összehasonlított élekből
-        val (nodes, _) = compare.constructGraph()
-
-        // Dijkstra algoritmust használunk egy kezdőpontból (pl. az első csúcs)
-        val startPoint = nodes.first().point
-        val shortestDistances = compare.dijkstra(startPoint, nodes)
-        Log.d("MyApp: - shortestDistances: ", shortestDistances.toString())
-
-        val bitmap = createBitmapFromBestMatch(bestMatch)
+        val bitmap = createBitmapFromBestMatch(finishedDrawMap)
 
         // UI frissítése a fő szálon
         withContext(Dispatchers.Main) {
@@ -58,7 +56,6 @@ class Finish  : AppCompatActivity() {
             imageView.setImageBitmap(bitmap)
         }
     }
-
 
     private fun createBitmapFromBestMatch(bestMatch: List<SVGtoGraph.Edge>): Bitmap {
         val bitmap = Bitmap.createBitmap(400, 300, Bitmap.Config.ARGB_8888)
@@ -120,4 +117,5 @@ class Finish  : AppCompatActivity() {
         val filePath = File(context.getExternalFilesDir(null), fileName)
         return BitmapFactory.decodeFile(filePath.absolutePath)
     }
+
 }

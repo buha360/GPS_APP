@@ -16,7 +16,6 @@ import android.util.Log
 import android.widget.Button
 import androidx.core.app.ActivityCompat
 import androidx.fragment.app.FragmentActivity
-import com.caverock.androidsvg.SVG
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -25,7 +24,6 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
-import com.google.android.gms.maps.model.PolylineOptions
 import org.opencv.android.OpenCVLoader
 import org.opencv.core.Mat
 import org.opencv.core.MatOfPoint
@@ -45,6 +43,7 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
 
     object DataHolder {
         var pathData = ArrayList<String>()
+        var detectedCorners = mutableListOf<Point>()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -106,6 +105,7 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
                     outputStream.close()
                     callback(true) // Sikeres mentés
                     convertSnapshotImageOpenCV(this)
+                    detectCornersUsingOpenCV(this)
                 } catch (e: IOException) {
                     e.printStackTrace()
                     callback(false) // Mentés sikertelen
@@ -133,8 +133,10 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
         Core.inRange(croppedImage, Scalar(0.0), Scalar(25.0), result) // A 0.0 és 100.0 határok az értékfüggőek lehetnek, módosítsd szükség szerint
 
         val contours = ArrayList<MatOfPoint>()
-        Imgproc.adaptiveThreshold(croppedImage, result, 255.0, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 25, 20.0)
+        Imgproc.adaptiveThreshold(croppedImage, result, 255.0, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 25, 12.0)
         Imgproc.findContours(result, contours, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
+
+        Log.d("MyApp", "Kontúrok száma: ${contours.size}")
 
         val bitmap = Bitmap.createBitmap(
             croppedImage.cols(),
@@ -160,13 +162,69 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
             }
 
             path.close()
+
             svgPathData.append(" Z") // "Z" az "close path" SVG parancs
             DataHolder.pathData.add(svgPathData.toString()) // SVG path adat hozzáadása az osztályszintű változóhoz
+            Log.d("MyApp: - pathData main: ", DataHolder.pathData.toString())
+
+            val cornerPaint = Paint()
+            cornerPaint.color = Color.BLUE
+            cornerPaint.style = Paint.Style.FILL
 
             val paint = Paint()
             paint.color = Color.BLACK
             paint.style = Paint.Style.FILL
             canvas.drawPath(path, paint)
         }
+
+        val directory = File(context.getExternalFilesDir(null), "gps_app")
+        if (!directory.exists()) {
+            directory.mkdirs()
+        }
+
+        val svgFile = File(directory, "convertedSVG_Map.svg")
+        if (svgFile.exists()) {
+            svgFile.delete()
+        }
+
+        createSVGFromPathData(DataHolder.pathData)
+        svgFile.writeText(DataHolder.pathData.toString())
+    }
+
+    private fun detectCornersUsingOpenCV(context: Context){
+        OpenCVLoader.initDebug()
+
+        val imagePath = File(context.getExternalFilesDir(null), "gps_app/map_snapshot.png")
+        val image = Imgcodecs.imread(imagePath.absolutePath, Imgcodecs.IMREAD_GRAYSCALE)
+
+        // Harris sarokdetekció
+        val harrisCorners = Mat()
+        Imgproc.cornerHarris(image, harrisCorners, 2, 3, 0.04)
+        val normalizedCorners = Mat()
+        Core.normalize(harrisCorners, normalizedCorners, 0.0, 255.0, Core.NORM_MINMAX)
+        Core.convertScaleAbs(normalizedCorners, normalizedCorners)
+
+        for (y in 0 until normalizedCorners.rows()) {
+            for (x in 0 until normalizedCorners.cols()) {
+                if (normalizedCorners.get(y, x)[0] > 150.0) {
+                    DataHolder.detectedCorners.add(Point(x.toDouble(), y.toDouble()))
+                }
+            }
+        }
+        Log.d("MyApp: - detectedCorners: ", DataHolder.detectedCorners.toString())
+    }
+
+    private fun createSVGFromPathData(pathData: List<String>): String {
+        val builder = StringBuilder()
+
+        builder.append("<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\">\n")
+
+        for (data in pathData) {
+            builder.append("<path d=\"$data\" fill=\"none\" stroke=\"black\"/>\n")
+        }
+
+        builder.append("</svg>")
+
+        return builder.toString()
     }
 }

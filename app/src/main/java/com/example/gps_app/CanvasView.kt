@@ -9,6 +9,7 @@ import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PorterDuff
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.widget.Toast
@@ -99,6 +100,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         DataHolder.pathData = pathData
+        Log.d("MyApp: - pathData canvas: ", DataHolder.pathData.toString())
 
         val svgContent = buildString {
             append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
