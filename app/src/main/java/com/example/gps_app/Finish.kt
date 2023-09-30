@@ -32,11 +32,11 @@ class Finish  : AppCompatActivity() {
         val detectedCornersConverted = detectedCorners.map { SVGtoGraph.Point(it.x.toFloat(), it.y.toFloat()) }
         val SVGtoGraphDraw = SVGtoGraph(MainActivity.DataHolder.pathData, detectedCornersConverted)
         val finishedDrawGraph = SVGtoGraphDraw.processPathData(false)
-        Log.d("MyApp: - finishedDrawGraph: ", finishedDrawGraph.toString())
+        Log.d("gps_app: - finishedDrawGraph: ", finishedDrawGraph.toString())
 
         val SVGtoGraphMap = SVGtoGraph(MainActivity.DataHolder.pathData, detectedCornersConverted)
         val finishedDrawMap = SVGtoGraphMap.processPathData(true)
-        Log.d("MyApp: - finishedDrawMap: ", finishedDrawMap.toString())
+        Log.d("gps_app: - finishedDrawMap: ", finishedDrawMap.toString())
 
         val svgContent = SVGtoGraphMap.createSVGFromGraph()
         val svgFile = File(getExternalFilesDir(null), "output_graph.svg")
@@ -45,8 +45,8 @@ class Finish  : AppCompatActivity() {
         val compare = CompareGraphs(finishedDrawGraph, finishedDrawMap)
 
         // Megkeressük az összehasonlító éleket
-        val bestMatch = compare.findPath()
-        Log.d("MyApp: - bestMatch: ", bestMatch.toString())
+        //val bestMatch = compare.findPath()
+        //Log.d("MyApp: - bestMatch: ", bestMatch.toString())
 
         val bitmap = createBitmapFromBestMatch(finishedDrawMap)
 

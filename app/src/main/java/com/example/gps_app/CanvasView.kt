@@ -76,9 +76,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 lastY = y
                 pathData.add("L $x $y") // Vonalszakasz hozzáadása a pathData-hoz
             }
-            MotionEvent.ACTION_UP -> {
-                pathData.add("Z") // Zárási parancs hozzáadása a pathData-hoz
-            }
             else -> return false
         }
 

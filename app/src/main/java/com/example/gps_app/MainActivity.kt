@@ -165,7 +165,7 @@ class MainActivity : FragmentActivity(), OnMapReadyCallback {
 
             svgPathData.append(" Z") // "Z" az "close path" SVG parancs
             DataHolder.pathData.add(svgPathData.toString()) // SVG path adat hozzáadása az osztályszintű változóhoz
-            Log.d("MyApp: - pathData main: ", DataHolder.pathData.toString())
+            Log.d("gps_app: - pathData main: ", DataHolder.pathData.toString())
 
             val cornerPaint = Paint()
             cornerPaint.color = Color.BLUE
