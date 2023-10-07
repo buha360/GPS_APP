@@ -1,230 +1,228 @@
 package com.example.gps_app
 
-import java.io.File
-import org.opencv.core.Core
-import android.Manifest
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
+import android.graphics.Rect
 import android.os.Bundle
+import android.os.Environment
 import android.util.Log
 import android.widget.Button
-import androidx.core.app.ActivityCompat
+import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationServices
-import com.google.android.gms.maps.CameraUpdateFactory
-import com.google.android.gms.maps.GoogleMap
-import com.google.android.gms.maps.OnMapReadyCallback
-import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import io.ktor.http.ContentDisposition.Companion.File
 import org.opencv.android.OpenCVLoader
-import org.opencv.core.Mat
-import org.opencv.core.MatOfPoint
-import org.opencv.core.Point
-import org.opencv.core.Scalar
-import org.opencv.imgcodecs.Imgcodecs
-import org.opencv.imgproc.Imgproc
+import org.osmdroid.api.IMapController
+import org.osmdroid.config.Configuration
+import org.osmdroid.events.MapListener
+import org.osmdroid.events.ScrollEvent
+import org.osmdroid.events.ZoomEvent
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
+import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
+import java.io.File
 import java.io.FileOutputStream
-import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
-class MainActivity : FragmentActivity(), OnMapReadyCallback {
+class MainActivity : FragmentActivity(), MapListener {
 
-    private var mGoogleMap: GoogleMap? = null
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private val LocationPermissionRequest = 1001
-    private val folderName = "gps_app"
+    data class GeoPoint(val lat: Double, val lon: Double)
+
+    data class Way(
+        val type: String,
+        val id: Long,
+        val nodes: List<Long>,
+        val tags: Map<String, String>
+    )
+
+    data class Node(
+        val type: String,
+        val id: Long,
+        val lat: Double,
+        val lon: Double
+    )
+
+    private lateinit var mMap: MapView
+    private lateinit var controller: IMapController
+    private lateinit var mMyLocationOverlay: MyLocationNewOverlay
 
     object DataHolder {
-        var pathData = ArrayList<String>()
-        var detectedCorners = mutableListOf<Point>()
+        var mapZoomLevel: Double? = null
+        var mapLatitude: Double? = null
+        var mapLongitude: Double? = null
+        var graph: MutableMap<GeoPoint, MutableList<GeoPoint>>? = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.layout)
 
-        val mapFragment = supportFragmentManager.findFragmentById(R.id.mapFragment) as SupportMapFragment
-        mapFragment.getMapAsync(this)
-
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        val nextBtn = findViewById<Button>(R.id.button_next)
-        nextBtn.setOnClickListener {
-            captureAndSaveMapSnapshot(this) { success ->
-                if (success) {
-                    val intent = Intent(this, DrawingActivity::class.java)
-                    startActivity(intent)
-                }
-            }
-        }
-    }
-
-    override fun onMapReady(googleMap: GoogleMap) {
-        mGoogleMap = googleMap
-        mGoogleMap?.setMapStyle(MapStyleOptions.loadRawResourceStyle(this, R.raw.map_style))
-
-        // Engedélyek ellenőrzése és helyzetlekérdezés
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED &&
-            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-
-            mGoogleMap!!.isMyLocationEnabled = true
-
-            fusedLocationClient.lastLocation
-                .addOnSuccessListener { location ->
-                    if (location != null) {
-                        val currentLatLng = LatLng(location.latitude, location.longitude)
-                        mGoogleMap!!.animateCamera(CameraUpdateFactory.newLatLngZoom(currentLatLng, 10f))
-                    }
-                }
-        } else {
-            // Engedélyek hiányában engedélykérés indítása
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION), LocationPermissionRequest)
-        }
-    }
-
-    private fun captureAndSaveMapSnapshot(context: Context, callback: (success: Boolean) -> Unit) {
-        mGoogleMap?.snapshot { bitmap ->
-            if (bitmap != null) {
-                val folder = File(context.getExternalFilesDir(null), folderName)
-                if (!folder.exists()) {
-                    folder.mkdirs()
-                }
-
-                val imagePath = File(folder, "map_snapshot.png")
-                val outputStream = FileOutputStream(imagePath)
-
-                try {
-                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
-                    outputStream.flush()
-                    outputStream.close()
-                    callback(true) // Sikeres mentés
-                    convertSnapshotImageOpenCV(this)
-                    detectCornersUsingOpenCV(this)
-                } catch (e: IOException) {
-                    e.printStackTrace()
-                    callback(false) // Mentés sikertelen
-                }
-            } else {
-                callback(false) // Snapshot hiányzik
-            }
-        }
-    }
-
-    private fun convertSnapshotImageOpenCV(context: Context) {
-        OpenCVLoader.initDebug()
-
-        val imagePath = File(context.getExternalFilesDir(null), "gps_app/map_snapshot.png")
-
-        // Betöltés Mat objektumba
-        val image = Imgcodecs.imread(imagePath.absolutePath, Imgcodecs.IMREAD_GRAYSCALE) // Átalakítjuk szürkeárnyalatos képpé
-
-        // Az alsó rész levágása
-        val cropHeight = image.rows() / 9 // Alsó 9%-át levágni a Google logó miatt
-        val croppedImage = image.submat(0, image.rows() - cropHeight, 0, image.cols())
-
-        // Csak a fekete vonalak tartása meg
-        val result = Mat()
-        Core.inRange(croppedImage, Scalar(0.0), Scalar(25.0), result) // A 0.0 és 100.0 határok az értékfüggőek lehetnek, módosítsd szükség szerint
-
-        val contours = ArrayList<MatOfPoint>()
-        Imgproc.adaptiveThreshold(croppedImage, result, 255.0, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 25, 12.0)
-        Imgproc.findContours(result, contours, Mat(), Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE)
-
-        Log.d("MyApp", "Kontúrok száma: ${contours.size}")
-
-        val bitmap = Bitmap.createBitmap(
-            croppedImage.cols(),
-            croppedImage.rows(),
-            Bitmap.Config.ARGB_8888
+        Configuration.getInstance().load(
+            applicationContext,
+            getSharedPreferences(getString(R.string.app_name), MODE_PRIVATE)
         )
 
-        val canvas = Canvas(bitmap)
-        canvas.drawColor(Color.WHITE) // Beállítjuk a háttérszínt fehérre
+        mMap = findViewById(R.id.osmmap)
+        mMap.setTileSource(TileSourceFactory.MAPNIK)
+        mMap.setMultiTouchControls(true)
+        mMap.getLocalVisibleRect(Rect())
 
-        for (contour in contours) {
-            val points = ArrayList<Point>(contour.toList())
-            val path = Path()
-            val svgPathData = StringBuilder("M") // "M" az "move to" SVG parancs
+        mMyLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), mMap)
+        controller = mMap.controller
 
-            if (points.isNotEmpty()) {
-                svgPathData.append("${points[0].x},${points[0].y}")  // Kezdőpont hozzáadása
+        mMyLocationOverlay.enableMyLocation()
+        mMyLocationOverlay.enableFollowLocation()
+        mMyLocationOverlay.isDrawAccuracyEnabled = true
+        mMyLocationOverlay.runOnFirstFix {
+            runOnUiThread {
+                controller.setCenter(mMyLocationOverlay.myLocation)
+                controller.animateTo(mMyLocationOverlay.myLocation)
             }
-
-            for (i in 1 until points.size) {
-                path.lineTo(points[i].x.toFloat(), points[i].y.toFloat())
-                svgPathData.append(" L ${points[i].x},${points[i].y}") // "L" az "line to" SVG parancs
-            }
-
-            path.close()
-
-            svgPathData.append(" Z") // "Z" az "close path" SVG parancs
-            DataHolder.pathData.add(svgPathData.toString()) // SVG path adat hozzáadása az osztályszintű változóhoz
-            Log.d("gps_app: - pathData main: ", DataHolder.pathData.toString())
-
-            val cornerPaint = Paint()
-            cornerPaint.color = Color.BLUE
-            cornerPaint.style = Paint.Style.FILL
-
-            val paint = Paint()
-            paint.color = Color.BLACK
-            paint.style = Paint.Style.FILL
-            canvas.drawPath(path, paint)
         }
 
-        val directory = File(context.getExternalFilesDir(null), "gps_app")
-        if (!directory.exists()) {
-            directory.mkdirs()
-        }
+        controller.setZoom(6.0)
+        mMap.overlays.add(mMyLocationOverlay)
+        mMap.addMapListener(this)
 
-        val svgFile = File(directory, "convertedSVG_Map.svg")
-        if (svgFile.exists()) {
-            svgFile.delete()
-        }
+        val buttonNext: Button = findViewById(R.id.button_next)
+        buttonNext.setOnClickListener {
+            hideMapUIElements()
+            fetchRoadsFromOverpass()
+            saveCurrentMapView()
+            DataHolder.mapZoomLevel = mMap.zoomLevelDouble
+            DataHolder.mapLatitude = mMap.mapCenter.latitude
+            DataHolder.mapLongitude = mMap.mapCenter.longitude
 
-        createSVGFromPathData(DataHolder.pathData)
-        svgFile.writeText(DataHolder.pathData.toString())
+            val intent = Intent(this, DrawingActivity::class.java)
+            startActivity(intent)
+        }
     }
 
-    private fun detectCornersUsingOpenCV(context: Context){
+    private fun saveCurrentMapView() {
         OpenCVLoader.initDebug()
+        val snapshot: Bitmap = Bitmap.createBitmap(mMap.width, mMap.height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(snapshot)
+        mMap.draw(canvas)
 
-        val imagePath = File(context.getExternalFilesDir(null), "gps_app/map_snapshot.png")
-        val image = Imgcodecs.imread(imagePath.absolutePath, Imgcodecs.IMREAD_GRAYSCALE)
+        // Az alkalmazás specifikus könyvtár meghatározása
+        val externalFilesDir = getExternalFilesDir(null)
+        val storageDirectory = File(externalFilesDir, "gps_app")
 
-        // Harris sarokdetekció
-        val harrisCorners = Mat()
-        Imgproc.cornerHarris(image, harrisCorners, 2, 3, 0.04)
-        val normalizedCorners = Mat()
-        Core.normalize(harrisCorners, normalizedCorners, 0.0, 255.0, Core.NORM_MINMAX)
-        Core.convertScaleAbs(normalizedCorners, normalizedCorners)
-
-        for (y in 0 until normalizedCorners.rows()) {
-            for (x in 0 until normalizedCorners.cols()) {
-                if (normalizedCorners.get(y, x)[0] > 150.0) {
-                    DataHolder.detectedCorners.add(Point(x.toDouble(), y.toDouble()))
-                }
-            }
+        // Ha a könyvtár még nem létezik, hozd létre
+        if (!storageDirectory.exists()) {
+            storageDirectory.mkdirs()
         }
-        Log.d("MyApp: - detectedCorners: ", DataHolder.detectedCorners.toString())
+
+        // Fájl létrehozása a könyvtárban
+        val fileToSave = File(storageDirectory, "map_snapshot.png")
+
+        try {
+            val out = FileOutputStream(fileToSave)
+            snapshot.compress(Bitmap.CompressFormat.PNG, 100, out)
+            out.flush()
+            out.close()
+            Toast.makeText(this, "Map saved to ${fileToSave.absolutePath}", Toast.LENGTH_SHORT).show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
-    private fun createSVGFromPathData(pathData: List<String>): String {
-        val builder = StringBuilder()
+    private fun fetchRoadsFromOverpass() {
+        val boundingBox = mMap.boundingBox
+        val overpassQuery = """
+            [out:json];
+            (
+                way["highway"](${boundingBox.latSouth},${boundingBox.lonWest},${boundingBox.latNorth},${boundingBox.lonEast});
+                relation["highway"](${boundingBox.latSouth},${boundingBox.lonWest},${boundingBox.latNorth},${boundingBox.lonEast});
+            );
+            out body;
+        >;
+        out geom;
+        """.trimIndent()
 
-        builder.append("<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\">\n")
+        Thread {
+            try {
+                val url = URL(
+                    "https://overpass-api.de/api/interpreter?data=${
+                        URLEncoder.encode(
+                            overpassQuery,
+                            "UTF-8"
+                        )
+                    }"
+                )
+                val connection = url.openConnection() as HttpURLConnection
+                connection.requestMethod = "GET"
+                connection.connect()
 
-        for (data in pathData) {
-            builder.append("<path d=\"$data\" fill=\"none\" stroke=\"black\"/>\n")
+                if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                    val result = connection.inputStream.bufferedReader().readText()
+                    val (ways, nodes) = parseOverpassResponse(result)
+                    val graph = buildGraph(ways, nodes)
+                } else {
+                    Log.e("OverpassAPI", "Error: ${connection.responseCode} - ${connection.responseMessage}")
+                }
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                Log.e("OverpassAPI", "Error fetching data: ${e.localizedMessage}")
+            }
+        }.start()
+    }
+
+    private fun buildGraph(ways: List<Way>, nodes: Map<Long, Node>): Map<GeoPoint, MutableList<GeoPoint>> {
+        val graph = mutableMapOf<GeoPoint, MutableList<GeoPoint>>()
+
+        for (way in ways) {
+            for (i in 0 until way.nodes.size - 1) {
+                val startPoint = nodes[way.nodes[i]] ?: continue
+                val endPoint = nodes[way.nodes[i + 1]] ?: continue
+
+                val startGeoPoint = GeoPoint(startPoint.lat, startPoint.lon)
+                val endGeoPoint = GeoPoint(endPoint.lat, endPoint.lon)
+
+                graph.computeIfAbsent(startGeoPoint) { mutableListOf() }.add(endGeoPoint)
+                graph.computeIfAbsent(endGeoPoint) { mutableListOf() }.add(startGeoPoint)
+            }
         }
 
-        builder.append("</svg>")
+        DataHolder.graph = graph
+        Log.d("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
 
-        return builder.toString()
+        return graph
+    }
+
+    private fun parseOverpassResponse(response: String): Pair<List<Way>, Map<Long, Node>> {
+        val gson = Gson()
+        val jsonResponse = gson.fromJson(response, JsonObject::class.java)
+
+        val ways = jsonResponse.getAsJsonArray("elements").filter {
+            it.asJsonObject["type"].asString == "way"
+        }.map { gson.fromJson(it, Way::class.java) }
+
+        val nodesMap = jsonResponse.getAsJsonArray("elements").filter {
+            it.asJsonObject["type"].asString == "node"
+        }.map { gson.fromJson(it, Node::class.java) }.associateBy { it.id }
+
+        return Pair(ways, nodesMap)
+    }
+
+    private fun hideMapUIElements() {
+        mMap.setMultiTouchControls(false) // Elrejti a zoom gombokat
+        mMap.overlays.remove(mMyLocationOverlay) // Elrejti a helyzetet jelölő ikont
+        mMap.invalidate()
+    }
+
+    override fun onScroll(event: ScrollEvent?): Boolean {
+        return true
+    }
+
+    override fun onZoom(event: ZoomEvent?): Boolean {
+        return false
     }
 }

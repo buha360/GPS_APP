@@ -1,121 +1,111 @@
 package com.example.gps_app
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Point
 import android.os.Bundle
 import android.util.Log
 import android.widget.ImageView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.example.gps_app.MainActivity.DataHolder.detectedCorners
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.Polyline
 import java.io.File
+import kotlin.math.pow
 
-class Finish  : AppCompatActivity() {
+class Finish : AppCompatActivity() {
+
+    data class FloatPoint(val x: Float, val y: Float)
+
+    private fun geoPointToCanvasPoint(geoPoint: MainActivity.GeoPoint, latRange: Pair<Double, Double>, lonRange: Pair<Double, Double>, width: Int, height: Int): FloatPoint {
+        val x = ((geoPoint.lon - lonRange.first) / (lonRange.second - lonRange.first) * width).toFloat()
+        val y = ((latRange.second - geoPoint.lat) / (latRange.second - latRange.first) * height).toFloat()
+
+        // Logolás hozzáadása
+        Log.d("gps_app", "GeoPoint: ${geoPoint.lon}, ${geoPoint.lat} -> CanvasPoint: $x, $y")
+
+        return FloatPoint(x, y)
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.finish)
+
+        loadAndDisplayMapSnapshot()
 
         CoroutineScope(Dispatchers.IO).launch {
             calculateBestMatch()
         }
     }
 
-    private suspend fun calculateBestMatch() {
-        val detectedCornersConverted = detectedCorners.map { SVGtoGraph.Point(it.x.toFloat(), it.y.toFloat()) }
-        val SVGtoGraphDraw = SVGtoGraph(MainActivity.DataHolder.pathData, detectedCornersConverted)
-        val finishedDrawGraph = SVGtoGraphDraw.processPathData(false)
-        Log.d("gps_app: - finishedDrawGraph: ", finishedDrawGraph.toString())
+    private fun loadAndDisplayMapSnapshot() {
+        val imageViewSnapshot: ImageView = findViewById(R.id.mapSnapshotImageView)
 
-        val SVGtoGraphMap = SVGtoGraph(MainActivity.DataHolder.pathData, detectedCornersConverted)
-        val finishedDrawMap = SVGtoGraphMap.processPathData(true)
-        Log.d("gps_app: - finishedDrawMap: ", finishedDrawMap.toString())
+        // Az alkalmazás specifikus könyvtár meghatározása
+        val externalFilesDir = getExternalFilesDir(null)
+        val storageDirectory = File(externalFilesDir, "gps_app")
 
-        val svgContent = SVGtoGraphMap.createSVGFromGraph()
-        val svgFile = File(getExternalFilesDir(null), "output_graph.svg")
-        svgFile.writeText(svgContent)
+        val fileToLoad = File(storageDirectory, "map_snapshot.png")
 
-        val compare = CompareGraphs(finishedDrawGraph, finishedDrawMap)
+        if (fileToLoad.exists()) {
+            val originalBitmap = BitmapFactory.decodeFile(fileToLoad.absolutePath)
+            val mutableBitmap = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-        // Megkeressük az összehasonlító éleket
-        //val bestMatch = compare.findPath()
-        //Log.d("MyApp: - bestMatch: ", bestMatch.toString())
+            val canvas = Canvas(mutableBitmap)
+            drawGraphOnCanvas(canvas, MainActivity.DataHolder.graph)
 
-        val bitmap = createBitmapFromBestMatch(finishedDrawMap)
-
-        // UI frissítése a fő szálon
-        withContext(Dispatchers.Main) {
-            val imageView = findViewById<ImageView>(R.id.imageViewFinish)
-            imageView.setImageBitmap(bitmap)
+            imageViewSnapshot.setImageBitmap(mutableBitmap)
+        } else {
+            Toast.makeText(this, "No snapshot found!", Toast.LENGTH_SHORT).show()
         }
     }
 
-    private fun createBitmapFromBestMatch(bestMatch: List<SVGtoGraph.Edge>): Bitmap {
-        val bitmap = Bitmap.createBitmap(400, 300, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val backgroundBitmap = loadImageFromExternalStorage(this, "gps_app/map_snapshot.png")
-
-        // Ellenőrizd, hogy létezik-e a háttérkép és rajzold meg.
-        if (backgroundBitmap != null) {
-            // Skálázd a hátteret a Canvas méretéhez
-            val scaledBackground = Bitmap.createScaledBitmap(backgroundBitmap, 400, 300, true)
-            canvas.drawBitmap(scaledBackground, 0f, 0f, null)
-        } else {
-            canvas.drawColor(Color.BLACK)
-        }
-
+    private fun drawGraphOnCanvas(canvas: Canvas, graph: Map<MainActivity.GeoPoint, MutableList<MainActivity.GeoPoint>>?) {
         val paint = Paint().apply {
             color = Color.RED
-            strokeWidth = 3f
+            strokeWidth = 5f
             style = Paint.Style.STROKE
         }
 
-        var minX = Float.MAX_VALUE
-        var minY = Float.MAX_VALUE
-        var maxX = Float.MIN_VALUE
-        var maxY = Float.MIN_VALUE
+        val width = canvas.width
+        val height = canvas.height
+        val latRange = Pair(MainActivity.DataHolder.mapLatitude!! - height / 2 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!), MainActivity.DataHolder.mapLatitude!! + height / 2 * 2.0.pow(
+            -MainActivity.DataHolder.mapZoomLevel!!
+        )
+        )
+        val lonRange = Pair(MainActivity.DataHolder.mapLongitude!! - width / 2 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!), MainActivity.DataHolder.mapLongitude!! + width / 2 * 2.0.pow(
+            -MainActivity.DataHolder.mapZoomLevel!!
+        )
+        )
 
-        for (edge in bestMatch) {
-            val from = edge.from
-            val to = edge.to
-
-            minX = minOf(minX, from.x, to.x)
-            minY = minOf(minY, from.y, to.y)
-            maxX = maxOf(maxX, from.x, to.x)
-            maxY = maxOf(maxY, from.y, to.y)
+        graph?.forEach { (startGeo, adjList) ->
+            val startPoint = geoPointToCanvasPoint(startGeo, latRange, lonRange, width, height)
+            adjList.forEach { endGeo ->
+                val endPoint = geoPointToCanvasPoint(endGeo, latRange, lonRange, width, height)
+                canvas.drawLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y, paint)
+            }
         }
-
-        // Kiszámítjuk a skálázási értékeket, és azonos értéket használunk mindkét tengelyen
-        val scale = minOf(canvas.width / (maxX - minX), canvas.height / (maxY - minY))
-
-        val offsetX = -minX
-        val offsetY = -minY
-
-        for (edge in bestMatch) {
-            val from = edge.from
-            val to = edge.to
-
-            val adjustedFromX = (from.x + offsetX) * scale
-            val adjustedFromY = (from.y + offsetY) * scale
-            val adjustedToX = (to.x + offsetX) * scale
-            val adjustedToY = (to.y + offsetY) * scale
-
-            canvas.drawLine(adjustedFromX, adjustedFromY, adjustedToX, adjustedToY, paint)
-        }
-
-        return bitmap
     }
 
-    private fun loadImageFromExternalStorage(context: Context, fileName: String): Bitmap? {
-        val filePath = File(context.getExternalFilesDir(null), fileName)
-        return BitmapFactory.decodeFile(filePath.absolutePath)
-    }
+    private suspend fun calculateBestMatch() {
+        withContext(Dispatchers.Main) {
+            val cGraphs = CompareGraph.getInstance()
+            val mainGraph = MainActivity.DataHolder.graph
+            val canvasGraph = CanvasView.DataHolder.graph
 
+            if (mainGraph != null && canvasGraph != null) {
+                //cGraphs.findSubgraph(mainGraph, canvasGraph)
+            } else {
+                Log.d("gps_app-mainactivity: - graph: ", "valami null")
+            }
+        }
+    }
 }

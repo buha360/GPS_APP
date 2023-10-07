@@ -7,18 +7,33 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
-import android.graphics.PorterDuff
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
-import android.widget.Toast
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
-import java.io.OutputStreamWriter
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
+
+    data class Vertex(val x: Float, val y: Float) {
+        override fun toString(): String {
+            return "($x, $y)"
+        }
+    }
+
+    data class Edge(val start: Vertex, val end: Vertex) {
+        override fun toString(): String {
+            return "[$start -> $end]"
+        }
+    }
+
+    class Graph {
+        val vertices = mutableListOf<Vertex>()
+        val edges = mutableListOf<Edge>()
+
+        override fun toString(): String {
+            return "Vertices: $vertices, Edges: $edges"
+        }
+    }
 
     private val path = Path()
     private val paint = Paint()
@@ -27,10 +42,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var canvasBitmap: Bitmap? = null
     private var drawCanvas: Canvas? = null
     private val brushSize = 8f
-    val pathData = ArrayList<String>()
+    private val pathData = ArrayList<String>()
 
     object DataHolder {
-        var pathData = ArrayList<String>()
+        var graph: Graph? = null
     }
 
     init {
@@ -76,6 +91,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 lastY = y
                 pathData.add("L $x $y") // Vonalszakasz hozzáadása a pathData-hoz
             }
+            MotionEvent.ACTION_UP -> {
+                pathData.add("U")
+            }
             else -> return false
         }
 
@@ -85,45 +103,35 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     fun clearCanvas() {
         pathData.clear()
+        path.reset()  // Törli a path-ot
         drawCanvas?.drawColor(Color.BLACK) // Fekete hátterűvé teszi a canvas-t
         invalidate()
     }
 
-    fun saveDrawingAsSVG(context: Context, filename: String) {
-        val folderName = "gps_app"
-        val folder = File(context.getExternalFilesDir(null), folderName)
-        if (!folder.exists()) {
-            folder.mkdirs()
-        }
+    fun createGraphFromPathData(){
+        val graph = Graph()
 
-        DataHolder.pathData = pathData
-        Log.d("MyApp: - pathData canvas: ", DataHolder.pathData.toString())
-
-        val svgContent = buildString {
-            append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
-            append("<svg width=\"${width}px\" height=\"${height}px\" version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" style=\"background-color:black\">\n")
-            append("<path d=\"")
-
-            for (i in 0 until pathData.size) {
-                append(pathData[i])
+        var lastVertex: Vertex? = null
+        for (data in pathData) {
+            if (data == "U") {
+                lastVertex = null
+                continue
             }
 
-            append("\" stroke=\"white\" stroke-width=\"2\" />\n")
-            append("</svg>")
-        }
+            val parts = data.split(" ")
+            val x = parts[1].toFloat()
+            val y = parts[2].toFloat()
 
-        try {
-            val file = File(folder, filename)
-            if (file.exists()) {
-                file.delete() // Ha már létezik a fájl, törölje
+            val currentVertex = Vertex(x, y)
+
+            if (lastVertex != null) {
+                graph.edges.add(Edge(lastVertex, currentVertex))
             }
-            val outputStreamWriter = OutputStreamWriter(FileOutputStream(file))
-            outputStreamWriter.write(svgContent)
-            outputStreamWriter.close()
-        } catch (e: IOException) {
-            e.printStackTrace()
+
+            graph.vertices.add(currentVertex)
+            lastVertex = currentVertex
         }
+        DataHolder.graph = graph
+        Log.d("gps_app-canvasview: - graph: ", DataHolder.graph.toString())
     }
 }
-
-
