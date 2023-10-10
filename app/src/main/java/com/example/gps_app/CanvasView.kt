@@ -117,20 +117,18 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun createGraphFromPathData() {
         val graph = Graph()
 
-        var lastVertex: Vertex? = null
         var segment = mutableListOf<Vertex>()
 
         for (data in pathData) {
             if (data == "U") {
                 if (segment.isNotEmpty()) {
-                    val simplifiedSegment = douglasPeucker(segment, 6.9f) // 6.9 pixel tolerancia
+                    val simplifiedSegment = douglasPeucker(segment, 5f) // 5 pixel tolerancia
                     for (i in 1 until simplifiedSegment.size) {
                         graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
                     }
                     graph.vertices.addAll(simplifiedSegment)
                 }
                 segment.clear()
-                lastVertex = null
                 continue
             }
 
@@ -140,7 +138,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val currentVertex = Vertex(x, y)
 
             segment.add(currentVertex)
-            lastVertex = currentVertex
         }
 
         DataHolder.graph = graph
