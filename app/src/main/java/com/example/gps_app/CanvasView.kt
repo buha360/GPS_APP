@@ -11,10 +11,13 @@ import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
-    data class Vertex(val x: Float, val y: Float) {
+    data class Vertex(val x: Double, val y: Double) {
         override fun toString(): String {
             return "($x, $y)"
         }
@@ -83,13 +86,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 path.moveTo(x, y)
                 lastX = x
                 lastY = y
-                pathData.add("M $x $y") // Kezdőpont hozzáadása a pathData-hoz
+                pathData.add("M $x $y")
             }
             MotionEvent.ACTION_MOVE -> {
-                path.lineTo(x, y)
-                lastX = x
-                lastY = y
-                pathData.add("L $x $y") // Vonalszakasz hozzáadása a pathData-hoz
+                val distance = sqrt((x - lastX).pow(2) + (y - lastY).pow(2))
+                if (distance > 10) {
+                    path.lineTo(x, y)
+                    lastX = x
+                    lastY = y
+                    pathData.add("L $x $y")
+                }
             }
             MotionEvent.ACTION_UP -> {
                 pathData.add("U")
@@ -108,30 +114,69 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         invalidate()
     }
 
-    fun createGraphFromPathData(){
+    fun createGraphFromPathData() {
         val graph = Graph()
 
         var lastVertex: Vertex? = null
+        var segment = mutableListOf<Vertex>()
+
         for (data in pathData) {
             if (data == "U") {
+                if (segment.isNotEmpty()) {
+                    val simplifiedSegment = douglasPeucker(segment, 6.9f) // 6.9 pixel tolerancia
+                    for (i in 1 until simplifiedSegment.size) {
+                        graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
+                    }
+                    graph.vertices.addAll(simplifiedSegment)
+                }
+                segment.clear()
                 lastVertex = null
                 continue
             }
 
             val parts = data.split(" ")
-            val x = parts[1].toFloat()
-            val y = parts[2].toFloat()
-
+            val x = parts[1].toDouble()
+            val y = parts[2].toDouble()
             val currentVertex = Vertex(x, y)
 
-            if (lastVertex != null) {
-                graph.edges.add(Edge(lastVertex, currentVertex))
-            }
-
-            graph.vertices.add(currentVertex)
+            segment.add(currentVertex)
             lastVertex = currentVertex
         }
+
         DataHolder.graph = graph
         Log.d("gps_app-canvasview: - graph: ", DataHolder.graph.toString())
+    }
+
+    private fun douglasPeucker(vertices: List<Vertex>, epsilon: Float): List<Vertex> {
+        if (vertices.size <= 2) return vertices
+
+        val firstVertex = vertices.first()
+        val lastVertex = vertices.last()
+
+        var maxDistance = 0.0f
+        var index = 0
+
+        for (i in 1 until vertices.size - 1) {
+            val distance = pointLineDistance(vertices[i], firstVertex, lastVertex)
+            if (distance > maxDistance) {
+                index = i
+                maxDistance = distance.toFloat()
+            }
+        }
+
+        if (maxDistance > epsilon) {
+            val leftRecursive = douglasPeucker(vertices.subList(0, index + 1), epsilon)
+            val rightRecursive = douglasPeucker(vertices.subList(index, vertices.size), epsilon)
+
+            return leftRecursive.dropLast(1) + rightRecursive
+        } else {
+            return listOf(firstVertex, lastVertex)
+        }
+    }
+
+    private fun pointLineDistance(point: Vertex, lineStart: Vertex, lineEnd: Vertex): Double {
+        val numerator = abs((lineEnd.y - lineStart.y) * point.x - (lineEnd.x - lineStart.x) * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
+        val denominator = sqrt((lineEnd.y - lineStart.y).pow(2) + (lineEnd.x - lineStart.x).pow(2))
+        return (numerator / denominator)
     }
 }

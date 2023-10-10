@@ -5,14 +5,12 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Rect
 import android.os.Bundle
-import android.os.Environment
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import io.ktor.http.ContentDisposition.Companion.File
 import org.opencv.android.OpenCVLoader
 import org.osmdroid.api.IMapController
 import org.osmdroid.config.Configuration
@@ -21,7 +19,6 @@ import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.io.File
@@ -29,6 +26,9 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.sqrt
 
 class MainActivity : FragmentActivity(), MapListener {
 
@@ -94,7 +94,7 @@ class MainActivity : FragmentActivity(), MapListener {
         buttonNext.setOnClickListener {
             hideMapUIElements()
             fetchRoadsFromOverpass()
-            saveCurrentMapView()
+
             DataHolder.mapZoomLevel = mMap.zoomLevelDouble
             DataHolder.mapLatitude = mMap.mapCenter.latitude
             DataHolder.mapLongitude = mMap.mapCenter.longitude
@@ -104,47 +104,17 @@ class MainActivity : FragmentActivity(), MapListener {
         }
     }
 
-    private fun saveCurrentMapView() {
-        OpenCVLoader.initDebug()
-        val snapshot: Bitmap = Bitmap.createBitmap(mMap.width, mMap.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(snapshot)
-        mMap.draw(canvas)
-
-        // Az alkalmazás specifikus könyvtár meghatározása
-        val externalFilesDir = getExternalFilesDir(null)
-        val storageDirectory = File(externalFilesDir, "gps_app")
-
-        // Ha a könyvtár még nem létezik, hozd létre
-        if (!storageDirectory.exists()) {
-            storageDirectory.mkdirs()
-        }
-
-        // Fájl létrehozása a könyvtárban
-        val fileToSave = File(storageDirectory, "map_snapshot.png")
-
-        try {
-            val out = FileOutputStream(fileToSave)
-            snapshot.compress(Bitmap.CompressFormat.PNG, 100, out)
-            out.flush()
-            out.close()
-            Toast.makeText(this, "Map saved to ${fileToSave.absolutePath}", Toast.LENGTH_SHORT).show()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
     private fun fetchRoadsFromOverpass() {
         val boundingBox = mMap.boundingBox
         val overpassQuery = """
-            [out:json];
-            (
-                way["highway"](${boundingBox.latSouth},${boundingBox.lonWest},${boundingBox.latNorth},${boundingBox.lonEast});
-                relation["highway"](${boundingBox.latSouth},${boundingBox.lonWest},${boundingBox.latNorth},${boundingBox.lonEast});
-            );
-            out body;
-        >;
-        out geom;
-        """.trimIndent()
+        [out:json];
+        (
+            way["highway"~"motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link"](${boundingBox.latSouth},${boundingBox.lonWest},${boundingBox.latNorth},${boundingBox.lonEast});
+        );
+        out body;
+    >;
+    out geom;
+    """.trimIndent()
 
         Thread {
             try {
@@ -179,12 +149,12 @@ class MainActivity : FragmentActivity(), MapListener {
         val graph = mutableMapOf<GeoPoint, MutableList<GeoPoint>>()
 
         for (way in ways) {
-            for (i in 0 until way.nodes.size - 1) {
-                val startPoint = nodes[way.nodes[i]] ?: continue
-                val endPoint = nodes[way.nodes[i + 1]] ?: continue
+            val geoPoints = way.nodes.mapNotNull { nodes[it] }.map { GeoPoint(it.lat, it.lon) }
+            val simplifiedWay = simplifyWay(geoPoints, 0.000005)
 
-                val startGeoPoint = GeoPoint(startPoint.lat, startPoint.lon)
-                val endGeoPoint = GeoPoint(endPoint.lat, endPoint.lon)
+            for (i in 0 until simplifiedWay.size - 1) {
+                val startGeoPoint = simplifiedWay[i]
+                val endGeoPoint = simplifiedWay[i + 1]
 
                 graph.computeIfAbsent(startGeoPoint) { mutableListOf() }.add(endGeoPoint)
                 graph.computeIfAbsent(endGeoPoint) { mutableListOf() }.add(startGeoPoint)
@@ -210,6 +180,45 @@ class MainActivity : FragmentActivity(), MapListener {
         }.map { gson.fromJson(it, Node::class.java) }.associateBy { it.id }
 
         return Pair(ways, nodesMap)
+    }
+
+    private fun simplifyWay(way: List<GeoPoint>, epsilon: Double): List<GeoPoint> {
+        val vertices = way.map { CanvasView.Vertex(it.lat, it.lon) }
+        val simplifiedVertices = douglasPeucker(vertices, epsilon.toFloat())
+        return simplifiedVertices.map { GeoPoint(it.x, it.y) }
+    }
+
+    private fun douglasPeucker(vertices: List<CanvasView.Vertex>, epsilon: Float): List<CanvasView.Vertex> {
+        if (vertices.size <= 2) return vertices
+
+        val firstVertex = vertices.first()
+        val lastVertex = vertices.last()
+
+        var maxDistance = 0.0f
+        var index = 0
+
+        for (i in 1 until vertices.size - 1) {
+            val distance = pointLineDistance(vertices[i], firstVertex, lastVertex)
+            if (distance > maxDistance) {
+                index = i
+                maxDistance = distance.toFloat()
+            }
+        }
+
+        if (maxDistance > epsilon) {
+            val leftRecursive = douglasPeucker(vertices.subList(0, index + 1), epsilon)
+            val rightRecursive = douglasPeucker(vertices.subList(index, vertices.size), epsilon)
+
+            return leftRecursive.dropLast(1) + rightRecursive
+        } else {
+            return listOf(firstVertex, lastVertex)
+        }
+    }
+
+    private fun pointLineDistance(point: CanvasView.Vertex, lineStart: CanvasView.Vertex, lineEnd: CanvasView.Vertex): Double {
+        val numerator = abs((lineEnd.y - lineStart.y) * point.x - (lineEnd.x - lineStart.x) * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
+        val denominator = sqrt((lineEnd.y - lineStart.y).pow(2) + (lineEnd.x - lineStart.x).pow(2))
+        return (numerator / denominator)
     }
 
     private fun hideMapUIElements() {
