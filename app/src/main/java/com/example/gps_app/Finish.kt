@@ -63,7 +63,6 @@ class Finish : AppCompatActivity() {
         return MainActivity.GeoPoint(lat, lon)
     }
 
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.finish)
@@ -206,7 +205,7 @@ class Finish : AppCompatActivity() {
                 polyline.setColor(Color.BLUE)
                 mMap.overlays.add(polyline)
             }
-            mMap.invalidate() // Refresh the map to show the blue lines
+            mMap.invalidate()
         }
     }
 }

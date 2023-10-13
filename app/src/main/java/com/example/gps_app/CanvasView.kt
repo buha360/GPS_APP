@@ -29,9 +29,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    class Graph {
+    class Graph() {
         val vertices = mutableListOf<Vertex>()
         val edges = mutableListOf<Edge>()
+
+        constructor(vertices: List<Vertex>) : this() {
+            this.vertices.addAll(vertices)
+        }
 
         override fun toString(): String {
             return "Vertices: $vertices, Edges: $edges"

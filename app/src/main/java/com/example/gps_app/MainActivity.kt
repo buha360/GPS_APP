@@ -27,12 +27,20 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.pow
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 class MainActivity : FragmentActivity(), MapListener {
 
     data class GeoPoint(val lat: Double, val lon: Double)
+
+    companion object {
+        // A Föld sugara méterben
+        const val EARTH_RADIUS = 6371000
+    }
 
     data class Way(
         val type: String,
@@ -147,6 +155,7 @@ class MainActivity : FragmentActivity(), MapListener {
 
     private fun buildGraph(ways: List<Way>, nodes: Map<Long, Node>): Map<GeoPoint, MutableList<GeoPoint>> {
         val graph = mutableMapOf<GeoPoint, MutableList<GeoPoint>>()
+        val thresholdDistance = 7.0  // Ez az érték azt határozza meg, milyen távolságra legyenek az új csomópontok.
 
         for (way in ways) {
             val geoPoints = way.nodes.mapNotNull { nodes[it] }.map { GeoPoint(it.lat, it.lon) }
@@ -161,10 +170,36 @@ class MainActivity : FragmentActivity(), MapListener {
             }
         }
 
+        connectIntersectingWays(graph, thresholdDistance)
+
         DataHolder.graph = graph
         Log.d("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
 
         return graph
+    }
+
+    // Csomópontok közötti távolság kiszámítása
+    private fun distanceBetweenPoints(p1: GeoPoint, p2: GeoPoint): Double {
+        val dLat = Math.toRadians(p2.lat - p1.lat)
+        val dLon = Math.toRadians(p2.lon - p1.lon)
+        val a = sin(dLat / 2) * sin(dLat / 2) +
+                cos(Math.toRadians(p1.lat)) * cos(Math.toRadians(p2.lat)) *
+                sin(dLon / 2) * sin(dLon / 2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+        return EARTH_RADIUS * c
+    }
+
+    // Metszéspontok és kapcsolatok felismerése és létrehozása
+    private fun connectIntersectingWays(graph: MutableMap<GeoPoint, MutableList<GeoPoint>>, threshold: Double) {
+        val keys = graph.keys.toList()
+        for (i in keys.indices) {
+            for (j in i + 1 until keys.size) {
+                if (distanceBetweenPoints(keys[i], keys[j]) < threshold) {
+                    graph[keys[i]]?.add(keys[j])
+                    graph[keys[j]]?.add(keys[i])
+                }
+            }
+        }
     }
 
     private fun parseOverpassResponse(response: String): Pair<List<Way>, Map<Long, Node>> {

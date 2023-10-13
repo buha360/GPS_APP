@@ -3,46 +3,125 @@ package com.example.gps_app
 import android.util.Log
 import kotlin.math.abs
 import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.pow
+import kotlin.math.sin
 import kotlin.math.sqrt
-import kotlin.random.Random
 
 class CompareGraph {
-    data class Point(val x: Double, val y: Double)
-
-    fun findSubgraph(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph, iterations: Int = 200): List<Point>? {
-        var bestMatch: List<Point>? = null
-        var bestScore = Double.MIN_VALUE
-
-        for (attempt in 1..iterations) {
-            val randomStartIndex = Random.nextInt(largeGraph.keys.size)
-            val startNode = largeGraph.keys.elementAt(randomStartIndex)
-
-            Log.d("gps_app-finish: - Attempt: $attempt: ", "Starting from: $startNode")
-
-            val currentConstructedGraph = mutableListOf<Point>()
-            var currentPoint = startNode
-            currentConstructedGraph.add(currentPoint)
-
-            val sizeLimit = minOf(largeGraph.size, smallGraph.vertices.size)
-            for (i in 0 until sizeLimit - 1) {
-                val nextSmallGraphPoint = Point(smallGraph.vertices[i + 1].x, smallGraph.vertices[i + 1].y)
-                val bestNeighbor = chooseNextPoint(largeGraph[currentPoint]!!, nextSmallGraphPoint)
-
-                currentConstructedGraph.add(bestNeighbor)
-                currentPoint = bestNeighbor
-            }
-
-            val score = matchScore(currentConstructedGraph, smallGraph.vertices)
-            if (score > bestScore) {
-                bestScore = score
-                bestMatch = currentConstructedGraph
-            }
-
-            Log.d("gps_app-finish: - Attempt: $attempt: ", "Score: $score")
+    data class Point(val x: Double, val y: Double) {
+        fun rotate(angle: Double, about: Point): Point {
+            val sinA = sin(Math.toRadians(angle))
+            val cosA = cos(Math.toRadians(angle))
+            val dx = x - about.x
+            val dy = y - about.y
+            val newX = cosA * dx - sinA * dy + about.x
+            val newY = sinA * dx + cosA * dy + about.y
+            return Point(newX, newY)
         }
 
-        Log.d("gps_app-finish: - BestMatch: $bestMatch: ", "Score: $bestScore")
+        fun scale(factor: Double, about: Point): Point {
+            val dx = x - about.x
+            val dy = y - about.y
+            val newX = dx * factor + about.x
+            val newY = dy * factor + about.y
+            return Point(newX, newY)
+        }
+    }
+
+    private val maxMatchesSize = 20  // Fixed size list
+
+    private fun depthFirstSearch(
+        largeGraph: MutableMap<Point, MutableList<Point>>,
+        smallGraph: CanvasView.Graph,
+        currentPath: MutableList<Point>,
+        visited: MutableSet<Point>,
+        currentDepth: Int,
+        potentialMatches: MutableList<List<Point>>
+    ) {
+        if (currentDepth == smallGraph.vertices.size) {
+            synchronized(potentialMatches) {
+                if (potentialMatches.size >= maxMatchesSize) {
+                    // Ha a lista mérete meghaladja a maxMatchesSize értékét, eltávolítjuk a legrosszabb pontszámú útvonalat
+                    val worstMatch = potentialMatches.minByOrNull { matchScore(it, smallGraph.vertices) }
+                    potentialMatches.remove(worstMatch)
+                }
+                potentialMatches.add(currentPath.toList())  // Copy and add the current path to potential matches
+            }
+            return
+        }
+
+        val currentVertex = currentPath.last()
+        val neighbors = largeGraph[currentVertex] ?: return
+
+        for (neighbor in neighbors) {
+            if (!visited.contains(neighbor)) {
+                currentPath.add(neighbor)
+                visited.add(neighbor)
+
+                depthFirstSearch(
+                    largeGraph,
+                    smallGraph,
+                    currentPath,
+                    visited,
+                    currentDepth + 1,
+                    potentialMatches
+                )
+
+                visited.remove(neighbor)
+                currentPath.removeAt(currentPath.size - 1)
+            }
+        }
+    }
+
+    fun findSubgraph(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph): List<Point> {
+        val rotations = listOf(0.0, 90.0, 180.0, 270.0)
+        val scales = listOf(0.8, 1.0, 1.2)
+
+        var bestScore = Double.MIN_VALUE
+        var bestMatch: List<Point> = mutableListOf()
+
+        // Calculate the centroid of the small graph to use as a reference point for transformations
+        val centroid = Point(
+            smallGraph.vertices.map { it.x }.average(),
+            smallGraph.vertices.map { it.y }.average()
+        )
+
+        for (rotation in rotations) {
+            for (scale in scales) {
+                val transformedSmallGraph = smallGraph.vertices.map {
+                    Point(it.x, it.y).rotate(rotation, centroid).scale(scale, centroid).let {
+                        CanvasView.Vertex(it.x, it.y)
+                    }
+                }
+
+                val potentialMatches = mutableListOf<List<Point>>()
+
+                for (startNode in largeGraph.keys) {
+                    val currentPath = mutableListOf(startNode)
+                    val visited = mutableSetOf(startNode)
+
+                    depthFirstSearch(
+                        largeGraph,
+                        CanvasView.Graph(transformedSmallGraph),
+                        currentPath,
+                        visited,
+                        1,
+                        potentialMatches
+                    )
+                }
+
+                for (match in potentialMatches) {
+                    val score = matchScore(match, transformedSmallGraph)
+
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestMatch = match
+                    }
+                }
+            }
+        }
+
         return bestMatch
     }
 
@@ -69,16 +148,11 @@ class CompareGraph {
             val angle2 = atan2((e2To.y - e2From.y), (e2To.x - e2From.x))
             val angleDiff = abs(angle1 - angle2)
 
-            val score = 0.3 * lengthDiff + 0.3 * angleDiff
-            totalScore += (1.0 - minOf(score, 0.6))
+            val score = 0.5 * lengthDiff + 0.5 * angleDiff
+            totalScore += (1.0 - minOf(score, 0.85))
         }
 
         return totalScore / (smallGraphVertices.size - 1)
-    }
-
-    private fun chooseNextPoint(neighbors: List<Point>, target: Point): Point {
-        val bestNeighbor = neighbors.minByOrNull { euklideanDistance(it, target) }
-        return bestNeighbor!!
     }
 
     companion object {
