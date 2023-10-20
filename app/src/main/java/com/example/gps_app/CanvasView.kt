@@ -7,10 +7,14 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.os.Environment
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
+import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -48,7 +52,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     private var lastY: Float = 0f
     private var canvasBitmap: Bitmap? = null
     private var drawCanvas: Canvas? = null
-    private val brushSize = 8f
+    private val brushSize = 7f
     private val pathData = ArrayList<String>()
 
     object DataHolder {
@@ -80,6 +84,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawPath(path, paint)
     }
 
+    private val connectionRadius = 6f  // Az a sugár, amin belül keresünk kapcsolódó pontot
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
@@ -102,6 +108,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 }
             }
             MotionEvent.ACTION_UP -> {
+                // Ellenőrizze, hogy az utolsó pont közel van-e egy korábban rajzolt ponthoz
+                val closePoint = findClosePoint(x, y)
+                if (closePoint != null) {
+                    path.lineTo(closePoint.x.toFloat(), closePoint.y.toFloat())
+                    pathData.add("L ${closePoint.x} ${closePoint.y}")
+                }
                 pathData.add("U")
             }
             else -> return false
@@ -109,6 +121,20 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         invalidate()
         return true
+    }
+
+    private fun findClosePoint(x: Float, y: Float): Vertex? {
+        for (data in pathData) {
+            if (data.startsWith("M") || data.startsWith("L")) {
+                val parts = data.split(" ")
+                val px = parts[1].toFloat()
+                val py = parts[2].toFloat()
+                if (sqrt((x - px).pow(2) + (y - py).pow(2)) < connectionRadius) {
+                    return Vertex(px.toDouble(), py.toDouble())
+                }
+            }
+        }
+        return null
     }
 
     fun clearCanvas() {
@@ -126,7 +152,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         for (data in pathData) {
             if (data == "U") {
                 if (segment.isNotEmpty()) {
-                    val simplifiedSegment = douglasPeucker(segment, 5f) // 5 pixel tolerancia
+                    val simplifiedSegment = douglasPeucker(segment, 20f) // 20 pixel tolerancia
                     for (i in 1 until simplifiedSegment.size) {
                         graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
                     }

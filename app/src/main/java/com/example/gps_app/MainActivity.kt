@@ -36,6 +36,8 @@ import kotlin.math.sqrt
 class MainActivity : FragmentActivity(), MapListener {
 
     data class GeoPoint(val lat: Double, val lon: Double)
+    data class Event(val point: GeoPoint, val segment: Segment)
+    data class Segment(val start: GeoPoint, val end: GeoPoint)
 
     companion object {
         // A Föld sugara méterben
@@ -65,6 +67,7 @@ class MainActivity : FragmentActivity(), MapListener {
         var mapLatitude: Double? = null
         var mapLongitude: Double? = null
         var graph: MutableMap<GeoPoint, MutableList<GeoPoint>>? = null
+        var intersectionPoints: MutableSet<GeoPoint> = mutableSetOf()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,7 +103,6 @@ class MainActivity : FragmentActivity(), MapListener {
 
         val buttonNext: Button = findViewById(R.id.button_next)
         buttonNext.setOnClickListener {
-            hideMapUIElements()
             fetchRoadsFromOverpass()
 
             DataHolder.mapZoomLevel = mMap.zoomLevelDouble
@@ -153,9 +155,97 @@ class MainActivity : FragmentActivity(), MapListener {
         }.start()
     }
 
+    private fun splitEdgesAtIntersections(graph: MutableMap<GeoPoint, MutableList<GeoPoint>>) {
+        val newGraph = mutableMapOf<GeoPoint, MutableList<GeoPoint>>()
+
+        for ((start, neighbors) in graph) {
+            for (end in neighbors) {
+                val intersections = findIntersections(start, end, graph)
+                if (intersections.isNotEmpty()) {
+                    Log.d("gps_app-", "Elmetszés történt a következő pontok között: $start és $end a metszéspontok: $intersections")
+                    DataHolder.intersectionPoints.addAll(intersections)  // Mentsük el az metszéspontokat
+                    var previous = start
+                    for (intersection in intersections.sortedBy { distanceBetweenPoints(start, it) }) {
+                        newGraph.computeIfAbsent(previous) { mutableListOf() }.add(intersection)
+                        newGraph.computeIfAbsent(intersection) { mutableListOf() }.add(previous)
+                        previous = intersection
+                    }
+                    newGraph.computeIfAbsent(previous) { mutableListOf() }.add(end)
+                } else {
+                    newGraph.computeIfAbsent(start) { mutableListOf() }.add(end)
+                }
+            }
+        }
+
+        graph.clear()
+        graph.putAll(newGraph)
+    }
+
+    private fun findIntersections(start: GeoPoint, end: GeoPoint, graph: Map<GeoPoint, MutableList<GeoPoint>>): List<GeoPoint> {
+        val intersections = mutableListOf<GeoPoint>()
+
+        for ((pointA, neighbors) in graph) {
+            for (pointB in neighbors) {
+                if (linesIntersect(start, end, pointA, pointB)) {
+                    val intersection = computeIntersection(start, end, pointA, pointB)
+                    intersections.add(intersection)
+                }
+            }
+        }
+
+        return intersections.distinct()
+    }
+
+    private fun linesIntersect(p1: GeoPoint, p2: GeoPoint, q1: GeoPoint, q2: GeoPoint): Boolean {
+        val a1 = (p2.lat - p1.lat)
+        val b1 = (p1.lon - p2.lon)
+        val c1 = a1 * p1.lon + b1 * p1.lat
+
+        val a2 = (q2.lat - q1.lat)
+        val b2 = (q1.lon - q2.lon)
+        val c2 = a2 * q1.lon + b2 * q1.lat
+
+        val det = a1 * b2 - a2 * b1
+        if (det == 0.0) {
+            // The lines are parallel
+            return false
+        }
+
+        val intersectX = (b2 * c1 - b1 * c2) / det
+        val intersectY = (a1 * c2 - a2 * c1) / det
+
+        if (isBetween(p1.lon, p2.lon, intersectX) &&
+            isBetween(p1.lat, p2.lat, intersectY) &&
+            isBetween(q1.lon, q2.lon, intersectX) &&
+            isBetween(q1.lat, q2.lat, intersectY)) {
+            return true
+        }
+        return false
+    }
+
+    private fun computeIntersection(p1: GeoPoint, p2: GeoPoint, q1: GeoPoint, q2: GeoPoint): GeoPoint {
+        val a1 = (p2.lat - p1.lat)
+        val b1 = (p1.lon - p2.lon)
+        val c1 = a1 * p1.lon + b1 * p1.lat
+
+        val a2 = (q2.lat - q1.lat)
+        val b2 = (q1.lon - q2.lon)
+        val c2 = a2 * q1.lon + b2 * q1.lat
+
+        val det = a1 * b2 - a2 * b1
+
+        val intersectX = (b2 * c1 - b1 * c2) / det
+        val intersectY = (a1 * c2 - a2 * c1) / det
+
+        return GeoPoint(intersectY, intersectX)
+    }
+
+    private fun isBetween(a: Double, b: Double, c: Double): Boolean {
+        return (c in a..b) || (c in b..a)
+    }
+
     private fun buildGraph(ways: List<Way>, nodes: Map<Long, Node>): Map<GeoPoint, MutableList<GeoPoint>> {
         val graph = mutableMapOf<GeoPoint, MutableList<GeoPoint>>()
-        val thresholdDistance = 7.0  // Ez az érték azt határozza meg, milyen távolságra legyenek az új csomópontok.
 
         for (way in ways) {
             val geoPoints = way.nodes.mapNotNull { nodes[it] }.map { GeoPoint(it.lat, it.lon) }
@@ -170,7 +260,8 @@ class MainActivity : FragmentActivity(), MapListener {
             }
         }
 
-        connectIntersectingWays(graph, thresholdDistance)
+        splitEdgesAtIntersections(graph)
+        connectIntersectingWays(graph, 7.0)
 
         DataHolder.graph = graph
         Log.d("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
@@ -178,7 +269,6 @@ class MainActivity : FragmentActivity(), MapListener {
         return graph
     }
 
-    // Csomópontok közötti távolság kiszámítása
     private fun distanceBetweenPoints(p1: GeoPoint, p2: GeoPoint): Double {
         val dLat = Math.toRadians(p2.lat - p1.lat)
         val dLon = Math.toRadians(p2.lon - p1.lon)
@@ -189,7 +279,6 @@ class MainActivity : FragmentActivity(), MapListener {
         return EARTH_RADIUS * c
     }
 
-    // Metszéspontok és kapcsolatok felismerése és létrehozása
     private fun connectIntersectingWays(graph: MutableMap<GeoPoint, MutableList<GeoPoint>>, threshold: Double) {
         val keys = graph.keys.toList()
         for (i in keys.indices) {
@@ -254,12 +343,6 @@ class MainActivity : FragmentActivity(), MapListener {
         val numerator = abs((lineEnd.y - lineStart.y) * point.x - (lineEnd.x - lineStart.x) * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
         val denominator = sqrt((lineEnd.y - lineStart.y).pow(2) + (lineEnd.x - lineStart.x).pow(2))
         return (numerator / denominator)
-    }
-
-    private fun hideMapUIElements() {
-        mMap.setMultiTouchControls(false) // Elrejti a zoom gombokat
-        mMap.overlays.remove(mMyLocationOverlay) // Elrejti a helyzetet jelölő ikont
-        mMap.invalidate()
     }
 
     override fun onScroll(event: ScrollEvent?): Boolean {
