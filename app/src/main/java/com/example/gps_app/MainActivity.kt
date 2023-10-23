@@ -36,7 +36,6 @@ import kotlin.math.sqrt
 class MainActivity : FragmentActivity(), MapListener {
 
     data class GeoPoint(val lat: Double, val lon: Double)
-    data class Event(val point: GeoPoint, val segment: Segment)
     data class Segment(val start: GeoPoint, val end: GeoPoint)
 
     companion object {
@@ -264,9 +263,19 @@ class MainActivity : FragmentActivity(), MapListener {
         connectIntersectingWays(graph, 7.0)
 
         DataHolder.graph = graph
-        Log.d("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
+        logLongMessage("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
 
         return graph
+    }
+
+    private fun logLongMessage(tag: String, message: String) {
+        val maxLogSize = 2500
+        for (i in 0..message.length / maxLogSize) {
+            val start = i * maxLogSize
+            var end = (i + 1) * maxLogSize
+            end = if (end > message.length) message.length else end
+            Log.d(tag, message.substring(start, end))
+        }
     }
 
     private fun distanceBetweenPoints(p1: GeoPoint, p2: GeoPoint): Double {

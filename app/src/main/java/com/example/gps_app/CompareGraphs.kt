@@ -1,10 +1,6 @@
 package com.example.gps_app
 
 import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -13,6 +9,29 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 class CompareGraph {
+
+    class PotentialMatchesHolder {
+        private val maxMatchesSize = 20
+        private val potentialMatches = mutableListOf<Pair<Double, List<Point>>>()
+        private val discoveredPaths = HashSet<List<Point>>()  // létrehozunk egy új HashSet-t
+
+        @Synchronized
+        fun addMatch(score: Double, match: List<Point>) {
+            if (!discoveredPaths.contains(match)) {  // Ellenőrizzük, hogy az út már szerepel-e a HashSet-ben
+                potentialMatches.add(Pair(score, match))
+                discoveredPaths.add(match)  // adjuk hozzá az utat a HashSet-hoz
+                potentialMatches.sortByDescending { it.first }
+                if (potentialMatches.size > maxMatchesSize) {
+                    potentialMatches.removeAt(potentialMatches.size - 1)
+                }
+            }
+        }
+
+        fun getTopMatches(): List<List<Point>> {
+            return potentialMatches.map { it.second }
+        }
+    }
+
     data class Point(val x: Double, val y: Double) {
         fun rotate(angle: Double, about: Point): Point {
             val sinA = sin(Math.toRadians(angle))
@@ -33,173 +52,76 @@ class CompareGraph {
         }
     }
 
-    object Dataholder {
-        var totalAttempts: Int = 0
-        var currentAttempt: Int = 0
-    }
+    private val potentialMatchesHolder = PotentialMatchesHolder()
 
-    data class PriorityQueueNode<T>(val data: T, val priority: Double)
-
-    class PriorityQueue<T> {
-        val elements: MutableList<PriorityQueueNode<T>> = mutableListOf()
-
-        fun isEmpty(): Boolean = elements.isEmpty()
-
-        fun add(data: T, priority: Double) {
-            elements.add(PriorityQueueNode(data, priority))
-            elements.sortBy { it.priority }
-        }
-
-        fun poll(): T? {
-            if (isEmpty()) return null
-            return elements.removeAt(0).data
-        }
-    }
-
-    private fun closestPointInLargeGraph(
-        point: Point,
-        graph: Map<Point, MutableList<Point>>
-    ): Point {
-        return graph.keys.minByOrNull { euklideanDistance(it, point) } ?: point
-    }
-
-    private fun aStarSearch(
-        start: Point,
-        goal: Point,
-        graph: Map<Point, MutableList<Point>>
-    ): List<Point> {
-        val openSet = PriorityQueue<Point>()
-        openSet.add(start, 0.0)
-
-        val cameFrom = mutableMapOf<Point, Point>()
-        val gScore = mutableMapOf<Point, Double>().withDefault { Double.MAX_VALUE }
-        gScore[start] = 0.0
-
-        val fScore = mutableMapOf<Point, Double>().withDefault { Double.MAX_VALUE }
-        fScore[start] = euklideanDistance(start, goal)
-
-        while (!openSet.isEmpty()) {
-            val current = openSet.poll()!!
-
-            if (current == goal) {
-                return reconstructPath(cameFrom, current)
-            }
-
-            for (neighbor in graph[current] ?: emptyList()) {
-                val tentativeGScore =
-                    gScore.getValue(current) + euklideanDistance(current, neighbor)
-
-                if (tentativeGScore < gScore.getValue(neighbor)) {
-                    cameFrom[neighbor] = current
-                    gScore[neighbor] = tentativeGScore
-                    fScore[neighbor] = tentativeGScore + euklideanDistance(neighbor, goal)
-                    if (neighbor !in openSet.elements.map { it.data }) {
-                        openSet.add(neighbor, fScore.getValue(neighbor))
-                    }
-                }
-            }
-        }
-
-        return emptyList()
-    }
-
-    private fun reconstructPath(cameFrom: Map<Point, Point>, current: Point): List<Point> {
-        val path = mutableListOf(current)
-        var temp = current
-        while (cameFrom.containsKey(temp)) {
-            path.add(cameFrom[temp]!!)
-            temp = cameFrom[temp]!!
-        }
-        return path.reversed()
-    }
-
-    private fun shortestPathInLargeGraph(
-        start: Point,
-        end: Point,
-        graph: Map<Point, MutableList<Point>>
-    ): List<Point> {
-        return aStarSearch(start, end, graph)
-    }
-
-    suspend fun findSubgraph(
+    private fun depthFirstSearch(
         largeGraph: MutableMap<Point, MutableList<Point>>,
-        smallGraph: CanvasView.Graph
-    ): List<List<Point>> {
-        val iterations = 1
-        val allResults = mutableListOf<Pair<List<Point>, Double>>()
+        smallGraph: CanvasView.Graph,
+        currentPath: MutableList<Point>,
+        visited: MutableSet<Point>,
+        currentDepth: Int
+    ) {
+        if (currentDepth == smallGraph.vertices.size) {
+            val score = matchScore(currentPath, smallGraph.vertices)
+            potentialMatchesHolder.addMatch(score, currentPath.toList())
+            return
+        }
 
-        val rotations = (0 until 360 step 12).map { it.toDouble() }
+        val currentVertex = currentPath.last()
+        val neighbors = largeGraph[currentVertex] ?: return
+
+        for (neighbor in neighbors) {
+            if (!visited.contains(neighbor)) {
+                currentPath.add(neighbor)
+                visited.add(neighbor)
+
+                depthFirstSearch(
+                    largeGraph,
+                    smallGraph,
+                    currentPath,
+                    visited,
+                    currentDepth + 1
+                )
+
+                visited.remove(neighbor)
+                currentPath.removeAt(currentPath.size - 1)
+            }
+        }
+    }
+
+    fun findSubgraph(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph): List<List<Point>> {
+        val rotations = (0 until 360 step 15).map { it.toDouble() }
         val scales = listOf(0.8, 0.9, 1.0, 1.1, 1.2)
+
         val centroid = Point(
             smallGraph.vertices.map { it.x }.average(),
             smallGraph.vertices.map { it.y }.average()
         )
 
-        Dataholder.totalAttempts = largeGraph.size * rotations.size * scales.size
-
-        // Új külső ciklus: Végighaladunk a nagy gráf minden pontján
-        for (largeGraphStartPoint in largeGraph.keys) {
-            for (i in 0 until iterations) {
-                val results = coroutineScope {
-                    rotations.flatMap { rotation ->
-                        scales.map { scale ->
-                            async(Dispatchers.Default) {
-                                Dataholder.currentAttempt++
-                                Log.d("gps_app-", "Attempt ${Dataholder.currentAttempt}/${Dataholder.totalAttempts}")
-                                val transformedSmallGraph = smallGraph.vertices.map {
-                                    Point(it.x, it.y).rotate(rotation, centroid).scale(scale, centroid)
-                                        .let {
-                                            CanvasView.Vertex(it.x, it.y)
-                                        }
-                                }
-
-                                if (transformedSmallGraph.isEmpty()) {
-                                    return@async null
-                                }
-
-                                val potentialMatches = mutableListOf<List<Point>>()
-
-                                // Használjuk a nagy gráf aktuális pontját a keresés indításához
-                                val startPointInLargeGraph = largeGraphStartPoint
-                                for (j in 1 until transformedSmallGraph.size) {
-                                    val endPoint = Point(transformedSmallGraph[j].x, transformedSmallGraph[j].y)
-                                    val closestEndPointInLargeGraph = closestPointInLargeGraph(endPoint, largeGraph)
-                                    val pathInLargeGraph = shortestPathInLargeGraph(
-                                        startPointInLargeGraph,
-                                        closestEndPointInLargeGraph,
-                                        largeGraph
-                                    )
-                                    potentialMatches.add(pathInLargeGraph)
-                                }
-
-                                val lastPointInTransformed = Point(transformedSmallGraph.last().x, transformedSmallGraph.last().y)
-                                val pathToStart = shortestPathInLargeGraph(
-                                    closestPointInLargeGraph(lastPointInTransformed, largeGraph),
-                                    startPointInLargeGraph,
-                                    largeGraph
-                                )
-                                potentialMatches.add(pathToStart)
-
-                                potentialMatches.maxByOrNull { match ->
-                                    matchScore(match, transformedSmallGraph)
-                                }
-                            }
-                        }
-                    }.awaitAll()
+        for (rotation in rotations) {
+            for (scale in scales) {
+                val transformedSmallGraph = smallGraph.vertices.map {
+                    Point(it.x, it.y).rotate(rotation, centroid).scale(scale, centroid).let {
+                        CanvasView.Vertex(it.x, it.y)
+                    }
                 }
 
-                val bestResult = results.filterNotNull()
-                    .maxByOrNull { match -> matchScore(match, smallGraph.vertices) }
-                if (bestResult != null) {
-                    allResults.add(Pair(bestResult, matchScore(bestResult, smallGraph.vertices)))
+                for (startNode in largeGraph.keys) {
+                    val currentPath = mutableListOf(startNode)
+                    val visited = mutableSetOf(startNode)
+
+                    depthFirstSearch(
+                        largeGraph,
+                        CanvasView.Graph(transformedSmallGraph),
+                        currentPath,
+                        visited,
+                        1
+                    )
                 }
             }
         }
 
-        allResults.sortByDescending { it.second } // Rendezzük csökkenő sorrendben az illeszkedési pontszámok alapján
-        val top10Results = allResults.take(10).map { it.first } // Vegyük az első 10 eredményt
-
-        return top10Results
+        return potentialMatchesHolder.getTopMatches()
     }
 
     private fun euklideanDistance(p1: Point, p2: Point): Double {
@@ -207,15 +129,15 @@ class CompareGraph {
     }
 
     private fun matchScore(largeGraph: List<Point>, smallGraphVertices: List<CanvasView.Vertex>): Double {
-        if (smallGraphVertices.isEmpty() || largeGraph.size < smallGraphVertices.size + 1) return 0.0  // +1 for the loopback to the start
+        if (smallGraphVertices.isEmpty() || largeGraph.size < smallGraphVertices.size) return 0.0
 
         var totalScore = 0.0
-        for (i in smallGraphVertices.indices) {
+        for (i in 0 until smallGraphVertices.size - 1) {
             val e1From = largeGraph[i]
-            val e1To = largeGraph[(i + 1) % largeGraph.size]
+            val e1To = largeGraph[i + 1]
 
             val e2From = Point(smallGraphVertices[i].x, smallGraphVertices[i].y)
-            val e2To = Point(smallGraphVertices[(i + 1) % smallGraphVertices.size].x, smallGraphVertices[(i + 1) % smallGraphVertices.size].y)
+            val e2To = Point(smallGraphVertices[i + 1].x, smallGraphVertices[i + 1].y)
 
             val length1 = euklideanDistance(e1From, e1To)
             val length2 = euklideanDistance(e2From, e2To)
@@ -226,10 +148,10 @@ class CompareGraph {
             val angleDiff = abs(angle1 - angle2)
 
             val score = 0.5 * lengthDiff + 0.5 * angleDiff
-            totalScore += (1.0 - minOf(score, 0.85))
+            totalScore += (1.0 - minOf(score, 0.8))
         }
 
-        return totalScore / smallGraphVertices.size
+        return totalScore / (smallGraphVertices.size - 1)
     }
 
     companion object {

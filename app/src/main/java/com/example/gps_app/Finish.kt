@@ -72,7 +72,7 @@ class Finish : AppCompatActivity() {
 
         initOpenStreetMap()
         drawGraphOnMap(MainActivity.DataHolder.graph)
-        //drawAllIntersectionPointsWithIcons()
+        drawAllIntersectionPointsWithIcons()
 
         CoroutineScope(Dispatchers.IO).launch {
             calculateBestMatch()
@@ -81,10 +81,13 @@ class Finish : AppCompatActivity() {
         val prevButton: Button = findViewById(R.id.prevMatchButton)
         val nextButton: Button = findViewById(R.id.nextMatchButton)
 
+        Log.d("gps_app-","canva: ${CanvasView.DataHolder.graph}")
+
         prevButton.setOnClickListener {
             if (currentBestMatchIndex > 0) {
                 currentBestMatchIndex--
                 drawBestMatchOnMap(DataHolder.bestMatches?.getOrNull(currentBestMatchIndex))
+                Log.d("gps_app-", "Current best match graph: ${DataHolder.bestMatches?.getOrNull(currentBestMatchIndex)}")
             }
         }
 
@@ -92,6 +95,7 @@ class Finish : AppCompatActivity() {
             if (currentBestMatchIndex < (DataHolder.bestMatches?.size ?: 0) - 1) {
                 currentBestMatchIndex++
                 drawBestMatchOnMap(DataHolder.bestMatches?.getOrNull(currentBestMatchIndex))
+                Log.d("gps_app-", "Current best match graph: ${DataHolder.bestMatches?.getOrNull(currentBestMatchIndex)}")
             }
         }
     }
@@ -156,33 +160,27 @@ class Finish : AppCompatActivity() {
                     projectedMainGraph,
                     it
                 )
-            }
+            } ?: emptyList()
 
-            // Válassza ki az első eredményt a lista elejéről (például a legjobbat)
-            val projectedBestMatch = projectedBestMatches?.firstOrNull()
+            val inverseProjectedMatches = projectedBestMatches.map { inverseProjectGraph(it) }
 
-            if (projectedBestMatch != null) {
-                // 3. Az inverz projektálás
-                val inverseProjectedList = inverseProjectGraph(projectedBestMatch)
+            // Transzformáljuk a mainGraph-ot, hogy megfeleljen a CompareGraph.Point típusnak
+            val transformedMainGraph = transformMainGraphToCompareGraphPoint(mainGraph)
 
-                // Transzformáljuk a mainGraph-ot, hogy megfeleljen a CompareGraph.Point típusnak
-                val transformedMainGraph = transformMainGraphToCompareGraphPoint(mainGraph)
-
+            val finalBestMatches = inverseProjectedMatches.flatMap { projectedMatch ->
                 val inverseProjectedGraph = CanvasView.Graph()
-                inverseProjectedList.forEach { point ->
+                projectedMatch.forEach { point ->
                     inverseProjectedGraph.vertices.add(CanvasView.Vertex(point.x, point.y))
                 }
 
                 // 4. Újra keresünk subgraphot az eredeti geokoordinátás gráfon
-                val finalBestMatch = cGraphs.findSubgraph(transformedMainGraph, inverseProjectedGraph)
-
-                // Az eredményt tároljuk a DataHolder-ben
-                DataHolder.bestMatches = finalBestMatch
-                Log.d("gps_app-finish: - bestMatch: ", DataHolder.bestMatches.toString())
-                drawBestMatchOnMap(finalBestMatch.firstOrNull())  // Vagy válasszon egy másik indexet a kívánt eredmény megjelenítéséhez
-            }else{
-                Log.d("gps_app-finish: - bestMatch: ", "Nincs egyezes")
+                cGraphs.findSubgraph(transformedMainGraph, inverseProjectedGraph) ?: emptyList()
             }
+
+            // Az eredményt tároljuk a DataHolder-ben
+            DataHolder.bestMatches = finalBestMatches
+            Log.d("gps_app-finish: - bestMatches: ", DataHolder.bestMatches.toString())
+            drawBestMatchOnMap(DataHolder.bestMatches?.getOrNull(currentBestMatchIndex))
         }
     }
 
@@ -233,9 +231,6 @@ class Finish : AppCompatActivity() {
     }
 
     private fun drawBestMatchOnMap(bestMatch: List<CompareGraph.Point>?) {
-        // Eltávolítja az összes réteget, amelyek polyline-ként vannak definiálva
-        mMap.overlays.removeAll { it is Polyline }
-
         bestMatch?.takeIf { it.size > 1 }?.let {
             for (i in 0 until it.size - 1) {
                 val startPoint = org.osmdroid.util.GeoPoint(it[i].x, it[i].y)

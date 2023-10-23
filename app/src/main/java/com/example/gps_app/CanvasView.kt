@@ -7,14 +7,10 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
-import android.os.Environment
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
 import android.view.View
-import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -152,7 +148,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         for (data in pathData) {
             if (data == "U") {
                 if (segment.isNotEmpty()) {
-                    val simplifiedSegment = douglasPeucker(segment, 20f) // 20 pixel tolerancia
+                    val simplifiedSegment = douglasPeucker(segment, 25f) // 20 pixel tolerancia
                     for (i in 1 until simplifiedSegment.size) {
                         graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
                     }
@@ -171,7 +167,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
 
         DataHolder.graph = graph
-        Log.d("gps_app-canvasview: - graph: ", DataHolder.graph.toString())
     }
 
     private fun douglasPeucker(vertices: List<Vertex>, epsilon: Float): List<Vertex> {
