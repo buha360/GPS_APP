@@ -148,7 +148,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         for (data in pathData) {
             if (data == "U") {
                 if (segment.isNotEmpty()) {
-                    val simplifiedSegment = douglasPeucker(segment, 25f) // 20 pixel tolerancia
+                    val simplifiedSegment = douglasPeucker(segment, 30f) // 30 pixel tolerancia
                     for (i in 1 until simplifiedSegment.size) {
                         graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
                     }

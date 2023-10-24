@@ -9,29 +9,6 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 class CompareGraph {
-
-    class PotentialMatchesHolder {
-        private val maxMatchesSize = 20
-        private val potentialMatches = mutableListOf<Pair<Double, List<Point>>>()
-        private val discoveredPaths = HashSet<List<Point>>()  // létrehozunk egy új HashSet-t
-
-        @Synchronized
-        fun addMatch(score: Double, match: List<Point>) {
-            if (!discoveredPaths.contains(match)) {  // Ellenőrizzük, hogy az út már szerepel-e a HashSet-ben
-                potentialMatches.add(Pair(score, match))
-                discoveredPaths.add(match)  // adjuk hozzá az utat a HashSet-hoz
-                potentialMatches.sortByDescending { it.first }
-                if (potentialMatches.size > maxMatchesSize) {
-                    potentialMatches.removeAt(potentialMatches.size - 1)
-                }
-            }
-        }
-
-        fun getTopMatches(): List<List<Point>> {
-            return potentialMatches.map { it.second }
-        }
-    }
-
     data class Point(val x: Double, val y: Double) {
         fun rotate(angle: Double, about: Point): Point {
             val sinA = sin(Math.toRadians(angle))
@@ -52,18 +29,25 @@ class CompareGraph {
         }
     }
 
-    private val potentialMatchesHolder = PotentialMatchesHolder()
+    private val maxMatchesSize = 20  // Fixed size list
 
     private fun depthFirstSearch(
         largeGraph: MutableMap<Point, MutableList<Point>>,
         smallGraph: CanvasView.Graph,
         currentPath: MutableList<Point>,
         visited: MutableSet<Point>,
-        currentDepth: Int
+        currentDepth: Int,
+        potentialMatches: MutableList<List<Point>>
     ) {
         if (currentDepth == smallGraph.vertices.size) {
-            val score = matchScore(currentPath, smallGraph.vertices)
-            potentialMatchesHolder.addMatch(score, currentPath.toList())
+            synchronized(potentialMatches) {
+                if (potentialMatches.size >= maxMatchesSize) {
+                    // Ha a lista mérete meghaladja a maxMatchesSize értékét, eltávolítjuk a legrosszabb pontszámú útvonalat
+                    val worstMatch = potentialMatches.minByOrNull { matchScore(it, smallGraph.vertices) }
+                    potentialMatches.remove(worstMatch)
+                }
+                potentialMatches.add(currentPath.toList())  // Copy and add the current path to potential matches
+            }
             return
         }
 
@@ -80,7 +64,8 @@ class CompareGraph {
                     smallGraph,
                     currentPath,
                     visited,
-                    currentDepth + 1
+                    currentDepth + 1,
+                    potentialMatches
                 )
 
                 visited.remove(neighbor)
@@ -89,10 +74,14 @@ class CompareGraph {
         }
     }
 
-    fun findSubgraph(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph): List<List<Point>> {
-        val rotations = (0 until 360 step 15).map { it.toDouble() }
-        val scales = listOf(0.8, 0.9, 1.0, 1.1, 1.2)
+    fun findSubgraph(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph): List<Point> {
+        val rotations = listOf(0.0, 90.0, 180.0, 270.0)
+        val scales = listOf(0.8, 1.0, 1.2)
 
+        var bestScore = Double.MIN_VALUE
+        var bestMatch: List<Point> = mutableListOf()
+
+        // Calculate the centroid of the small graph to use as a reference point for transformations
         val centroid = Point(
             smallGraph.vertices.map { it.x }.average(),
             smallGraph.vertices.map { it.y }.average()
@@ -106,6 +95,8 @@ class CompareGraph {
                     }
                 }
 
+                val potentialMatches = mutableListOf<List<Point>>()
+
                 for (startNode in largeGraph.keys) {
                     val currentPath = mutableListOf(startNode)
                     val visited = mutableSetOf(startNode)
@@ -115,13 +106,23 @@ class CompareGraph {
                         CanvasView.Graph(transformedSmallGraph),
                         currentPath,
                         visited,
-                        1
+                        1,
+                        potentialMatches
                     )
+                }
+
+                for (match in potentialMatches) {
+                    val score = matchScore(match, transformedSmallGraph)
+
+                    if (score > bestScore) {
+                        bestScore = score
+                        bestMatch = match
+                    }
                 }
             }
         }
 
-        return potentialMatchesHolder.getTopMatches()
+        return bestMatch
     }
 
     private fun euklideanDistance(p1: Point, p2: Point): Double {
@@ -148,7 +149,7 @@ class CompareGraph {
             val angleDiff = abs(angle1 - angle2)
 
             val score = 0.5 * lengthDiff + 0.5 * angleDiff
-            totalScore += (1.0 - minOf(score, 0.8))
+            totalScore += (1.0 - minOf(score, 0.85))
         }
 
         return totalScore / (smallGraphVertices.size - 1)

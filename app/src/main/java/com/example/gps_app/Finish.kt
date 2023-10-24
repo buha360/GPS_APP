@@ -7,7 +7,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.os.Bundle
 import android.util.Log
-import android.widget.Button
 import android.widget.ImageView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -26,12 +25,10 @@ class Finish : AppCompatActivity() {
     data class FloatPoint(val x: Float, val y: Float)
 
     object DataHolder {
-        var bestMatches: List<List<CompareGraph.Point>>? = null
+        var bestMatch: List<CompareGraph.Point>? = null
     }
 
     private lateinit var mMap: MapView
-
-    private var currentBestMatchIndex: Int = 0
 
     private fun geoPointToCanvasPoint(
         geoPoint: MainActivity.GeoPoint,
@@ -70,49 +67,13 @@ class Finish : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.finish)
 
+        // Initialize and set up OpenStreetMap
         initOpenStreetMap()
         drawGraphOnMap(MainActivity.DataHolder.graph)
-        drawAllIntersectionPointsWithIcons()
 
         CoroutineScope(Dispatchers.IO).launch {
             calculateBestMatch()
         }
-
-        val prevButton: Button = findViewById(R.id.prevMatchButton)
-        val nextButton: Button = findViewById(R.id.nextMatchButton)
-
-        Log.d("gps_app-","canva: ${CanvasView.DataHolder.graph}")
-
-        prevButton.setOnClickListener {
-            if (currentBestMatchIndex > 0) {
-                currentBestMatchIndex--
-                drawBestMatchOnMap(DataHolder.bestMatches?.getOrNull(currentBestMatchIndex))
-                Log.d("gps_app-", "Current best match graph: ${DataHolder.bestMatches?.getOrNull(currentBestMatchIndex)}")
-            }
-        }
-
-        nextButton.setOnClickListener {
-            if (currentBestMatchIndex < (DataHolder.bestMatches?.size ?: 0) - 1) {
-                currentBestMatchIndex++
-                drawBestMatchOnMap(DataHolder.bestMatches?.getOrNull(currentBestMatchIndex))
-                Log.d("gps_app-", "Current best match graph: ${DataHolder.bestMatches?.getOrNull(currentBestMatchIndex)}")
-            }
-        }
-    }
-
-    private fun drawIntersectionPointWithIcon(geoPoint: MainActivity.GeoPoint) {
-        val drawable = resources.getDrawable(androidx.appcompat.R.drawable.abc_btn_check_material, null) // Cserélje le a "your_icon_name"-et az ön ikonjának nevére
-        val marker = org.osmdroid.views.overlay.Marker(mMap)
-        marker.icon = drawable
-        marker.position = org.osmdroid.util.GeoPoint(geoPoint.lat, geoPoint.lon)
-        mMap.overlays.add(marker)
-    }
-
-    private fun drawAllIntersectionPointsWithIcons() {
-        MainActivity.DataHolder.intersectionPoints.forEach { geoPoint ->
-            drawIntersectionPointWithIcon(geoPoint)
-        }
-        mMap.invalidate()  // Frissítse a térképet
     }
 
     private fun initOpenStreetMap() {
@@ -155,32 +116,35 @@ class Finish : AppCompatActivity() {
             val projectedMainGraph = projectMainGraphToCanvas(mainGraph)
 
             // 2. Keresünk subgraphot a projektált gráfon
-            val projectedBestMatches = canvasGraph?.let {
+            val projectedBestMatch = canvasGraph?.let {
                 cGraphs.findSubgraph(
                     projectedMainGraph,
                     it
                 )
-            } ?: emptyList()
+            }
 
-            val inverseProjectedMatches = projectedBestMatches.map { inverseProjectGraph(it) }
+            if (projectedBestMatch != null) {
+                // 3. Az inverz projektálás
+                val inverseProjectedList = inverseProjectGraph(projectedBestMatch)
 
-            // Transzformáljuk a mainGraph-ot, hogy megfeleljen a CompareGraph.Point típusnak
-            val transformedMainGraph = transformMainGraphToCompareGraphPoint(mainGraph)
+                // Transzformáljuk a mainGraph-ot, hogy megfeleljen a CompareGraph.Point típusnak
+                val transformedMainGraph = transformMainGraphToCompareGraphPoint(mainGraph)
 
-            val finalBestMatches = inverseProjectedMatches.flatMap { projectedMatch ->
                 val inverseProjectedGraph = CanvasView.Graph()
-                projectedMatch.forEach { point ->
+                inverseProjectedList.forEach { point ->
                     inverseProjectedGraph.vertices.add(CanvasView.Vertex(point.x, point.y))
                 }
 
                 // 4. Újra keresünk subgraphot az eredeti geokoordinátás gráfon
-                cGraphs.findSubgraph(transformedMainGraph, inverseProjectedGraph) ?: emptyList()
-            }
+                val finalBestMatch = cGraphs.findSubgraph(transformedMainGraph, inverseProjectedGraph)
 
-            // Az eredményt tároljuk a DataHolder-ben
-            DataHolder.bestMatches = finalBestMatches
-            Log.d("gps_app-finish: - bestMatches: ", DataHolder.bestMatches.toString())
-            drawBestMatchOnMap(DataHolder.bestMatches?.getOrNull(currentBestMatchIndex))
+                // Az eredményt tároljuk a DataHolder-ben
+                DataHolder.bestMatch = finalBestMatch
+                Log.d("gps_app-finish: - bestMatch: ", DataHolder.bestMatch.toString())
+                drawBestMatchOnMap(finalBestMatch)
+            }else{
+                Log.d("gps_app-finish: - bestMatch: ", "Nincs egyezes")
+            }
         }
     }
 
