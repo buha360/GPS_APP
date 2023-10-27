@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
 import android.widget.ImageView
@@ -115,17 +116,20 @@ class Finish : AppCompatActivity() {
             // 1. Projektáljuk a geokoordinátás gráfot a vászon pontokra
             val projectedMainGraph = projectMainGraphToCanvas(mainGraph)
 
-            // 2. Keresünk subgraphot a projektált gráfon
-            val projectedBestMatch = canvasGraph?.let {
-                cGraphs.findSubgraph(
+            // 2. Keresünk legjobb forgatási egyezést a projektált gráfon
+            val rotationMatches = canvasGraph?.let {
+                cGraphs.findBestRotationMatch(
                     projectedMainGraph,
                     it
                 )
             }
 
-            if (projectedBestMatch != null) {
+            // Válasszuk ki a legjobb egyezést a rotationMatches-ből (most csak az elsőt választjuk ki)
+            val bestRotationMatch = rotationMatches?.values?.firstOrNull()
+
+            if (bestRotationMatch != null) {
                 // 3. Az inverz projektálás
-                val inverseProjectedList = inverseProjectGraph(projectedBestMatch)
+                val inverseProjectedList = inverseProjectGraph(bestRotationMatch)
 
                 // Transzformáljuk a mainGraph-ot, hogy megfeleljen a CompareGraph.Point típusnak
                 val transformedMainGraph = transformMainGraphToCompareGraphPoint(mainGraph)
@@ -205,6 +209,7 @@ class Finish : AppCompatActivity() {
                 polyline.setColor(Color.BLUE)
                 mMap.overlays.add(polyline)
             }
+
             mMap.invalidate()
         }
     }

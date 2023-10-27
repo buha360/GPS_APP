@@ -161,7 +161,6 @@ class MainActivity : FragmentActivity(), MapListener {
             for (end in neighbors) {
                 val intersections = findIntersections(start, end, graph)
                 if (intersections.isNotEmpty()) {
-                    Log.d("gps_app-", "Elmetszés történt a következő pontok között: $start és $end a metszéspontok: $intersections")
                     DataHolder.intersectionPoints.addAll(intersections)  // Mentsük el az metszéspontokat
                     var previous = start
                     for (intersection in intersections.sortedBy { distanceBetweenPoints(start, it) }) {
@@ -263,7 +262,7 @@ class MainActivity : FragmentActivity(), MapListener {
         connectIntersectingWays(graph, 7.0)
 
         DataHolder.graph = graph
-        logLongMessage("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
+        //logLongMessage("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
 
         return graph
     }

@@ -8,7 +8,6 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
-import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
@@ -29,13 +28,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    class Graph() {
+    class Graph {
         val vertices = mutableListOf<Vertex>()
         val edges = mutableListOf<Edge>()
-
-        constructor(vertices: List<Vertex>) : this() {
-            this.vertices.addAll(vertices)
-        }
 
         override fun toString(): String {
             return "Vertices: $vertices, Edges: $edges"
@@ -143,12 +138,12 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     fun createGraphFromPathData() {
         val graph = Graph()
 
-        var segment = mutableListOf<Vertex>()
+        val segment = mutableListOf<Vertex>()
 
         for (data in pathData) {
             if (data == "U") {
                 if (segment.isNotEmpty()) {
-                    val simplifiedSegment = douglasPeucker(segment, 30f) // 30 pixel tolerancia
+                    val simplifiedSegment = douglasPeucker(segment, 10f) // 10 pixel tolerancia
                     for (i in 1 until simplifiedSegment.size) {
                         graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
                     }
@@ -186,13 +181,13 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
         }
 
-        if (maxDistance > epsilon) {
+        return if (maxDistance > epsilon) {
             val leftRecursive = douglasPeucker(vertices.subList(0, index + 1), epsilon)
             val rightRecursive = douglasPeucker(vertices.subList(index, vertices.size), epsilon)
 
-            return leftRecursive.dropLast(1) + rightRecursive
+            leftRecursive.dropLast(1) + rightRecursive
         } else {
-            return listOf(firstVertex, lastVertex)
+            listOf(firstVertex, lastVertex)
         }
     }
 

@@ -2,157 +2,200 @@ package com.example.gps_app
 
 import android.util.Log
 import kotlin.math.abs
-import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
 class CompareGraph {
-    data class Point(val x: Double, val y: Double) {
-        fun rotate(angle: Double, about: Point): Point {
-            val sinA = sin(Math.toRadians(angle))
-            val cosA = cos(Math.toRadians(angle))
-            val dx = x - about.x
-            val dy = y - about.y
-            val newX = cosA * dx - sinA * dy + about.x
-            val newY = sinA * dx + cosA * dy + about.y
-            return Point(newX, newY)
-        }
+    data class Point(val x: Double, val y: Double)
 
-        fun scale(factor: Double, about: Point): Point {
-            val dx = x - about.x
-            val dy = y - about.y
-            val newX = dx * factor + about.x
-            val newY = dy * factor + about.y
-            return Point(newX, newY)
-        }
-    }
-
-    private val maxMatchesSize = 20  // Fixed size list
-
-    private fun depthFirstSearch(
-        largeGraph: MutableMap<Point, MutableList<Point>>,
-        smallGraph: CanvasView.Graph,
-        currentPath: MutableList<Point>,
-        visited: MutableSet<Point>,
-        currentDepth: Int,
-        potentialMatches: MutableList<List<Point>>
-    ) {
-        if (currentDepth == smallGraph.vertices.size) {
-            synchronized(potentialMatches) {
-                if (potentialMatches.size >= maxMatchesSize) {
-                    // Ha a lista mérete meghaladja a maxMatchesSize értékét, eltávolítjuk a legrosszabb pontszámú útvonalat
-                    val worstMatch = potentialMatches.minByOrNull { matchScore(it, smallGraph.vertices) }
-                    potentialMatches.remove(worstMatch)
-                }
-                potentialMatches.add(currentPath.toList())  // Copy and add the current path to potential matches
-            }
-            return
-        }
-
-        val currentVertex = currentPath.last()
-        val neighbors = largeGraph[currentVertex] ?: return
-
-        for (neighbor in neighbors) {
-            if (!visited.contains(neighbor)) {
-                currentPath.add(neighbor)
-                visited.add(neighbor)
-
-                depthFirstSearch(
-                    largeGraph,
-                    smallGraph,
-                    currentPath,
-                    visited,
-                    currentDepth + 1,
-                    potentialMatches
-                )
-
-                visited.remove(neighbor)
-                currentPath.removeAt(currentPath.size - 1)
-            }
-        }
+    object DataHolder {
+        val selectedPoints = mutableListOf<Point>()
     }
 
     fun findSubgraph(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph): List<Point> {
-        val rotations = listOf(0.0, 90.0, 180.0, 270.0)
-        val scales = listOf(0.8, 1.0, 1.2)
+        val matchedPoints = mutableListOf<Point>()
+        val convertedIntersectionPoints = MainActivity.DataHolder.intersectionPoints.map { convertGeoPointToGraphPoint(it) }.toSet()
+        for (vertex in smallGraph.vertices) {
+            val targetPoint = Point(vertex.x, vertex.y)
+            val matchedPoint = findClosestPoint(targetPoint, largeGraph, convertedIntersectionPoints)
+            if (matchedPoint != null) {
+                matchedPoints.add(matchedPoint)
+                DataHolder.selectedPoints.add(matchedPoint)  // Save the matched points to the DataHolder
+            }
+        }
 
-        var bestScore = Double.MIN_VALUE
-        var bestMatch: List<Point> = mutableListOf()
+        val pathBetweenMatchedPoints = mutableListOf<Point>()
+        for (i in 1 until matchedPoints.size) {
+            val path = aStarSearch(matchedPoints[i - 1], matchedPoints[i], largeGraph, convertedIntersectionPoints)
+            if (path != null) {
+                pathBetweenMatchedPoints.addAll(path)
+            }
+        }
 
-        // Calculate the centroid of the small graph to use as a reference point for transformations
-        val centroid = Point(
-            smallGraph.vertices.map { it.x }.average(),
-            smallGraph.vertices.map { it.y }.average()
-        )
+        return pathBetweenMatchedPoints
+    }
 
-        for (rotation in rotations) {
-            for (scale in scales) {
-                val transformedSmallGraph = smallGraph.vertices.map {
-                    Point(it.x, it.y).rotate(rotation, centroid).scale(scale, centroid).let {
-                        CanvasView.Vertex(it.x, it.y)
+    fun findBestRotationMatch(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph): Map<Double, List<Point>> {
+        val allMatches = mutableMapOf<Double, List<Point>>()
+        val scores = mutableMapOf<Double, Double>()
+
+        val originalVertices = smallGraph.vertices.map { Point(it.x, it.y) }
+        val centroid = computeCentroid(originalVertices)
+
+        for (i in 0..36) {
+            val angle = i * 10.0
+            val rotatedVertices = originalVertices.map { rotatePoint(it, centroid, angle) }
+            val rotatedSmallGraph = CanvasView.Graph().apply {
+                vertices.addAll(rotatedVertices.map { CanvasView.Vertex(it.x, it.y) })
+            }
+
+            val currentMatch = findSubgraph(largeGraph, rotatedSmallGraph)
+
+            // Compute score for this match
+            val score = currentMatch.sumOf { matchPoint ->
+                originalVertices.minOf { vertex ->
+                    heuristicCostEstimate(vertex, matchPoint)
+                }
+            }
+
+            scores[angle] = score
+
+            // Log the match and its score
+            Log.d("gps_app-", "Angle: $angle, Match: $currentMatch, Score: $score")
+
+            if (currentMatch.isNotEmpty()) {
+                allMatches[angle] = currentMatch
+            }
+        }
+
+        // Now, you can get the best match based on the scores
+        val bestAngle = scores.minByOrNull { it.value }?.key
+        val bestMatch = allMatches[bestAngle]
+
+        return mapOf(bestAngle!! to bestMatch!!)
+    }
+
+    private fun rotatePoint(p: Point, center: Point, angle: Double): Point {
+        val rad = Math.toRadians(angle)
+        val sin = sin(rad)
+        val cos = cos(rad)
+
+        // Translate point to origin
+        val x = p.x - center.x
+        val y = p.y - center.y
+
+        // Rotate point
+        val xNew = x * cos - y * sin
+        val yNew = x * sin + y * cos
+
+        // Translate point back
+        return Point(xNew + center.x, yNew + center.y)
+    }
+
+    private fun computeCentroid(points: List<Point>): Point {
+        val x = points.sumOf { it.x } / points.size
+        val y = points.sumOf { it.y } / points.size
+        return Point(x, y)
+    }
+
+    private fun findClosestPoint(target: Point, largeGraph: MutableMap<Point, MutableList<Point>>, intersectionPoints: Set<Point>): Point? {
+        var closestPoint: Point? = null
+        var minDistance = Double.MAX_VALUE
+
+        val allPoints = largeGraph.keys + intersectionPoints
+
+        for (point in allPoints) {
+            val distance = sqrt((target.x - point.x).pow(2) + (target.y - point.y).pow(2))
+            if (distance < minDistance) {
+                minDistance = distance
+                closestPoint = point
+            }
+        }
+
+        return closestPoint
+    }
+
+    private fun aStarSearch(start: Point, goal: Point, largeGraph: MutableMap<Point, MutableList<Point>>, intersectionPoints: Set<Point>): List<Point>? {
+        val openSet = mutableListOf(start)
+        val cameFrom = mutableMapOf<Point, Point>()
+        val gScore = mutableMapOf<Point, Double>().withDefault { Double.MAX_VALUE }
+        val fScore = mutableMapOf<Point, Double>().withDefault { Double.MAX_VALUE }
+        val intersectionsOnPath = mutableListOf<Point>()
+
+        gScore[start] = 0.0
+        fScore[start] = heuristicCostEstimate(start, goal)
+
+        while (openSet.isNotEmpty()) {
+            val current = openSet.minByOrNull { fScore.getValue(it) }
+            if (current == null) {
+                return null
+            }
+            if (current == goal) {
+                if (intersectionsOnPath.isNotEmpty()) {
+                    val firstIntersection = intersectionsOnPath.first()
+                    val lastIntersection = intersectionsOnPath.last()
+                    return reconstructPath(cameFrom, current).filter {
+                        isBetween(it, start, firstIntersection) || isBetween(it, lastIntersection, goal)
                     }
+                } else {
+                    return reconstructPath(cameFrom, current)
                 }
-
-                val potentialMatches = mutableListOf<List<Point>>()
-
-                for (startNode in largeGraph.keys) {
-                    val currentPath = mutableListOf(startNode)
-                    val visited = mutableSetOf(startNode)
-
-                    depthFirstSearch(
-                        largeGraph,
-                        CanvasView.Graph(transformedSmallGraph),
-                        currentPath,
-                        visited,
-                        1,
-                        potentialMatches
-                    )
+            }
+            openSet.remove(current)
+            for (neighbor in largeGraph[current] ?: emptyList()) {
+                if (neighbor in intersectionPoints) {
+                    intersectionsOnPath.add(neighbor)
                 }
-
-                for (match in potentialMatches) {
-                    val score = matchScore(match, transformedSmallGraph)
-
-                    if (score > bestScore) {
-                        bestScore = score
-                        bestMatch = match
+                val tentativeGScore = gScore.getValue(current) + distanceBetween(current, neighbor)
+                if (tentativeGScore < gScore.getValue(neighbor)) {
+                    cameFrom[neighbor] = current
+                    gScore[neighbor] = tentativeGScore
+                    fScore[neighbor] = gScore.getValue(neighbor) + heuristicCostEstimate(neighbor, goal)
+                    if (neighbor !in openSet) {
+                        openSet.add(neighbor)
                     }
                 }
             }
         }
-
-        return bestMatch
+        return null
     }
 
-    private fun euklideanDistance(p1: Point, p2: Point): Double {
-        return sqrt((p2.x - p1.x).pow(2) + (p2.y - p1.y).pow(2))
-    }
-
-    private fun matchScore(largeGraph: List<Point>, smallGraphVertices: List<CanvasView.Vertex>): Double {
-        if (smallGraphVertices.isEmpty() || largeGraph.size < smallGraphVertices.size) return 0.0
-
-        var totalScore = 0.0
-        for (i in 0 until smallGraphVertices.size - 1) {
-            val e1From = largeGraph[i]
-            val e1To = largeGraph[i + 1]
-
-            val e2From = Point(smallGraphVertices[i].x, smallGraphVertices[i].y)
-            val e2To = Point(smallGraphVertices[i + 1].x, smallGraphVertices[i + 1].y)
-
-            val length1 = euklideanDistance(e1From, e1To)
-            val length2 = euklideanDistance(e2From, e2To)
-            val lengthDiff = abs(length1 - length2) / maxOf(length1, length2)
-
-            val angle1 = atan2((e1To.y - e1From.y), (e1To.x - e1From.x))
-            val angle2 = atan2((e2To.y - e2From.y), (e2To.x - e2From.x))
-            val angleDiff = abs(angle1 - angle2)
-
-            val score = 0.5 * lengthDiff + 0.5 * angleDiff
-            totalScore += (1.0 - minOf(score, 0.85))
+    private fun reconstructPath(cameFrom: MutableMap<Point, Point>, current: Point): List<Point> {
+        val totalPath = mutableListOf(current)
+        var tempCurrent = current
+        while (cameFrom.keys.contains(tempCurrent)) {
+            tempCurrent = cameFrom[tempCurrent]!!
+            totalPath.add(tempCurrent)
         }
+        return totalPath.reversed()
+    }
 
-        return totalScore / (smallGraphVertices.size - 1)
+
+    private fun heuristicCostEstimate(start: Point, goal: Point): Double {
+        return sqrt((start.x - goal.x).pow(2) + (start.y - goal.y).pow(2))
+    }
+
+    private fun distanceBetween(a: Point, b: Point): Double {
+        return sqrt((a.x - b.x).pow(2) + (a.y - b.y).pow(2))
+    }
+
+    private fun convertGeoPointToGraphPoint(geoPoint: MainActivity.GeoPoint): CompareGraph.Point {
+        return CompareGraph.Point(geoPoint.lat, geoPoint.lon)
+    }
+
+    private fun isBetween(point: Point, start: Point, end: Point): Boolean {
+        val crossProduct = (point.y - start.y) * (end.x - start.x) - (point.x - start.x) * (end.y - start.y)
+        if (abs(crossProduct) > 0.0001) return false  // a pont nem az egyenesen van
+
+        val dotProduct = (point.x - start.x) * (end.x - start.x) + (point.y - start.y) * (end.y - start.y)
+        if (dotProduct < 0) return false  // a pont a start pont mögött van
+
+        val squaredLength = (end.x - start.x) * (end.x - start.x) + (end.y - start.y) * (end.y - start.y)
+        if (dotProduct > squaredLength) return false  // a pont az end ponton túl van
+
+        return true
     }
 
     companion object {
