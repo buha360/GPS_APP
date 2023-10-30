@@ -15,7 +15,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
-        android:label="@string/app_name"
+        android:label="@string/MapCanva"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Gps_app"
@@ -35,7 +35,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
+            android:label="@string/MapCanva"
             android:theme="@style/Theme.Gps_app">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -43,5 +43,4 @@
             </intent-filter>
         </activity>
     </application>
-
 </manifest>

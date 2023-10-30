@@ -75,7 +75,7 @@ class MainActivity : FragmentActivity(), MapListener {
 
         Configuration.getInstance().load(
             applicationContext,
-            getSharedPreferences(getString(R.string.app_name), MODE_PRIVATE)
+            getSharedPreferences(getString(R.string.MapCanva), MODE_PRIVATE)
         )
 
         mMap = findViewById(R.id.osmmap)

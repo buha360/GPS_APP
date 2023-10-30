@@ -1,6 +1,5 @@
 <resources>
-    <string name="app_name">gps_app</string>
-    <string name="google_map_api_key">AIzaSyCT57MJDSRB9695ZGn_A-OiJnchyvA0Qws</string>
+    <string name="MapCanva">MapCanva</string>
     <string name="first_fragment_label">First Fragment</string>
     <string name="second_fragment_label">Second Fragment</string>
     <string name="Finish">Finish</string>

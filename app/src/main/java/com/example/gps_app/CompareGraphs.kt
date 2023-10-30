@@ -14,6 +14,15 @@ class CompareGraph {
         val selectedPoints = mutableListOf<Point>()
     }
 
+    private fun scalePoints(points: List<Point>, scaleFactor: Double, center: Point): List<Point> {
+        return points.map {
+            Point(
+                center.x + (it.x - center.x) * scaleFactor,
+                center.y + (it.y - center.y) * scaleFactor
+            )
+        }
+    }
+
     fun findSubgraph(largeGraph: MutableMap<Point, MutableList<Point>>, smallGraph: CanvasView.Graph): List<Point> {
         val matchedPoints = mutableListOf<Point>()
         val convertedIntersectionPoints = MainActivity.DataHolder.intersectionPoints.map { convertGeoPointToGraphPoint(it) }.toSet()
@@ -42,31 +51,47 @@ class CompareGraph {
         val scores = mutableMapOf<Double, Double>()
 
         val originalVertices = smallGraph.vertices.map { Point(it.x, it.y) }
-        val centroid = computeCentroid(originalVertices)
+        val centroidSmallGraph = computeCentroid(originalVertices)
+        val centroidLargeGraph = computeCentroid(largeGraph.keys.toList())
 
-        for (i in 0..36) {
-            val angle = i * 10.0
-            val rotatedVertices = originalVertices.map { rotatePoint(it, centroid, angle) }
-            val rotatedSmallGraph = CanvasView.Graph().apply {
-                vertices.addAll(rotatedVertices.map { CanvasView.Vertex(it.x, it.y) })
-            }
+        val scalingFactors = listOf(0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4)
 
-            val currentMatch = findSubgraph(largeGraph, rotatedSmallGraph)
+        for (scale in scalingFactors) {
+            val scaledVertices = scalePoints(originalVertices, scale, centroidSmallGraph)
+            val maxDistance = computeMaxDistanceFromCentroid(centroidLargeGraph, largeGraph)
 
-            // Compute score for this match
-            val score = currentMatch.sumOf { matchPoint ->
-                originalVertices.minOf { vertex ->
-                    heuristicCostEstimate(vertex, matchPoint)
+            for (radius in 0..maxDistance.toInt() step 12) {
+                for (i in 0..36) {
+                    val angle = i * 10.0
+
+                    val dx = centroidLargeGraph.x + radius * cos(Math.toRadians(angle)) - centroidSmallGraph.x
+                    val dy = centroidLargeGraph.y + radius * sin(Math.toRadians(angle)) - centroidSmallGraph.y
+
+                    val translatedVertices = scaledVertices.map { Point(it.x + dx, it.y + dy) }
+
+                    val rotatedVertices = translatedVertices.map { rotatePoint(it, centroidLargeGraph, angle) }
+                    val rotatedSmallGraph = CanvasView.Graph().apply {
+                        vertices.addAll(rotatedVertices.map { CanvasView.Vertex(it.x, it.y) })
+                    }
+
+                    val currentMatch = findSubgraph(largeGraph, rotatedSmallGraph)
+
+                    // Compute score for this match
+                    val score = currentMatch.sumOf { matchPoint ->
+                        translatedVertices.minOf { vertex ->
+                            heuristicCostEstimate(vertex, matchPoint)
+                        }
+                    }
+
+                    scores[angle] = score
+
+                    // Log the match and its score
+                    Log.d("gps_app-", "Scale: $scale, Angle: $angle, Match: $currentMatch, Score: $score")
+
+                    if (currentMatch.isNotEmpty()) {
+                        allMatches[angle] = currentMatch
+                    }
                 }
-            }
-
-            scores[angle] = score
-
-            // Log the match and its score
-            Log.d("gps_app-", "Angle: $angle, Match: $currentMatch, Score: $score")
-
-            if (currentMatch.isNotEmpty()) {
-                allMatches[angle] = currentMatch
             }
         }
 
@@ -128,19 +153,16 @@ class CompareGraph {
         fScore[start] = heuristicCostEstimate(start, goal)
 
         while (openSet.isNotEmpty()) {
-            val current = openSet.minByOrNull { fScore.getValue(it) }
-            if (current == null) {
-                return null
-            }
+            val current = openSet.minByOrNull { fScore.getValue(it) } ?: return null
             if (current == goal) {
-                if (intersectionsOnPath.isNotEmpty()) {
+                return if (intersectionsOnPath.isNotEmpty()) {
                     val firstIntersection = intersectionsOnPath.first()
                     val lastIntersection = intersectionsOnPath.last()
-                    return reconstructPath(cameFrom, current).filter {
+                    reconstructPath(cameFrom, current).filter {
                         isBetween(it, start, firstIntersection) || isBetween(it, lastIntersection, goal)
                     }
                 } else {
-                    return reconstructPath(cameFrom, current)
+                    reconstructPath(cameFrom, current)
                 }
             }
             openSet.remove(current)
@@ -181,8 +203,12 @@ class CompareGraph {
         return sqrt((a.x - b.x).pow(2) + (a.y - b.y).pow(2))
     }
 
-    private fun convertGeoPointToGraphPoint(geoPoint: MainActivity.GeoPoint): CompareGraph.Point {
-        return CompareGraph.Point(geoPoint.lat, geoPoint.lon)
+    private fun convertGeoPointToGraphPoint(geoPoint: MainActivity.GeoPoint): Point {
+        return Point(geoPoint.lat, geoPoint.lon)
+    }
+
+    private fun computeMaxDistanceFromCentroid(centroid: Point, graph: MutableMap<Point, MutableList<Point>>): Double {
+        return graph.keys.map { distanceBetween(it, centroid) }.maxOrNull() ?: 0.0
     }
 
     private fun isBetween(point: Point, start: Point, end: Point): Boolean {
