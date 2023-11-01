@@ -31,7 +31,7 @@ class CompareGraph {
             val matchedPoint = findClosestPoint(targetPoint, largeGraph, convertedIntersectionPoints)
             if (matchedPoint != null) {
                 matchedPoints.add(matchedPoint)
-                DataHolder.selectedPoints.add(matchedPoint)  // Save the matched points to the DataHolder
+                DataHolder.selectedPoints.add(matchedPoint)
             }
         }
 
@@ -60,9 +60,9 @@ class CompareGraph {
             val scaledVertices = scalePoints(originalVertices, scale, centroidSmallGraph)
             val maxDistance = computeMaxDistanceFromCentroid(centroidLargeGraph, largeGraph)
 
-            for (radius in 0..maxDistance.toInt() step 12) {
-                for (i in 0..36) {
-                    val angle = i * 10.0
+            for (radius in 0..maxDistance.toInt() step 8) {
+                for (i in 0..45) {
+                    val angle = i * 8.0
 
                     val dx = centroidLargeGraph.x + radius * cos(Math.toRadians(angle)) - centroidSmallGraph.x
                     val dy = centroidLargeGraph.y + radius * sin(Math.toRadians(angle)) - centroidSmallGraph.y
@@ -76,7 +76,6 @@ class CompareGraph {
 
                     val currentMatch = findSubgraph(largeGraph, rotatedSmallGraph)
 
-                    // Compute score for this match
                     val score = currentMatch.sumOf { matchPoint ->
                         translatedVertices.minOf { vertex ->
                             heuristicCostEstimate(vertex, matchPoint)
@@ -84,8 +83,6 @@ class CompareGraph {
                     }
 
                     scores[angle] = score
-
-                    // Log the match and its score
                     Log.d("gps_app-", "Scale: $scale, Angle: $angle, Match: $currentMatch, Score: $score")
 
                     if (currentMatch.isNotEmpty()) {
@@ -95,12 +92,13 @@ class CompareGraph {
             }
         }
 
-        // Now, you can get the best match based on the scores
         val bestAngle = scores.minByOrNull { it.value }?.key
         val bestMatch = allMatches[bestAngle]
 
         return mapOf(bestAngle!! to bestMatch!!)
     }
+
+
 
     private fun rotatePoint(p: Point, center: Point, angle: Double): Point {
         val rad = Math.toRadians(angle)
@@ -194,7 +192,6 @@ class CompareGraph {
         return totalPath.reversed()
     }
 
-
     private fun heuristicCostEstimate(start: Point, goal: Point): Double {
         return sqrt((start.x - goal.x).pow(2) + (start.y - goal.y).pow(2))
     }
@@ -208,7 +205,7 @@ class CompareGraph {
     }
 
     private fun computeMaxDistanceFromCentroid(centroid: Point, graph: MutableMap<Point, MutableList<Point>>): Double {
-        return graph.keys.map { distanceBetween(it, centroid) }.maxOrNull() ?: 0.0
+        return graph.keys.maxOfOrNull { distanceBetween(it, centroid) } ?: 0.0
     }
 
     private fun isBetween(point: Point, start: Point, end: Point): Boolean {

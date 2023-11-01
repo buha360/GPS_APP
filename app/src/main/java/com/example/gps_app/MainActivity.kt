@@ -36,11 +36,10 @@ import kotlin.math.sqrt
 class MainActivity : FragmentActivity(), MapListener {
 
     data class GeoPoint(val lat: Double, val lon: Double)
-    data class Segment(val start: GeoPoint, val end: GeoPoint)
+    data class Edge(val start: GeoPoint, val end: GeoPoint)
 
     companion object {
-        // A Föld sugara méterben
-        const val EARTH_RADIUS = 6371000
+        const val EARTH_RADIUS = 6371000 // A Föld sugara méterben
     }
 
     data class Way(
@@ -154,6 +153,7 @@ class MainActivity : FragmentActivity(), MapListener {
         }.start()
     }
 
+    /*
     private fun splitEdgesAtIntersections(graph: MutableMap<GeoPoint, MutableList<GeoPoint>>) {
         val newGraph = mutableMapOf<GeoPoint, MutableList<GeoPoint>>()
 
@@ -177,6 +177,18 @@ class MainActivity : FragmentActivity(), MapListener {
 
         graph.clear()
         graph.putAll(newGraph)
+    }
+     */
+
+    private fun splitEdgeAtIntersection(edge: Edge, intersections: List<GeoPoint>): List<Edge> {
+        val allPoints = listOf(edge.start) + intersections.sortedBy { distanceBetweenPoints(it, edge.start) } + listOf(edge.end)
+        val newEdges = mutableListOf<Edge>()
+
+        for (i in 0 until allPoints.size - 1) {
+            newEdges.add(Edge(allPoints[i], allPoints[i + 1]))
+        }
+
+        return newEdges
     }
 
     private fun findIntersections(start: GeoPoint, end: GeoPoint, graph: Map<GeoPoint, MutableList<GeoPoint>>): List<GeoPoint> {
@@ -252,29 +264,28 @@ class MainActivity : FragmentActivity(), MapListener {
             for (i in 0 until simplifiedWay.size - 1) {
                 val startGeoPoint = simplifiedWay[i]
                 val endGeoPoint = simplifiedWay[i + 1]
+                val currentEdge = Edge(startGeoPoint, endGeoPoint)
 
-                graph.computeIfAbsent(startGeoPoint) { mutableListOf() }.add(endGeoPoint)
-                graph.computeIfAbsent(endGeoPoint) { mutableListOf() }.add(startGeoPoint)
+                val intersections = findIntersections(startGeoPoint, endGeoPoint, graph)
+                if (intersections.isNotEmpty()) {
+                    DataHolder.intersectionPoints.addAll(intersections)
+                    val splitEdges = splitEdgeAtIntersection(currentEdge, intersections)
+
+                    for (edge in splitEdges) {
+                        graph.computeIfAbsent(edge.start) { mutableListOf() }.add(edge.end)
+                        graph.computeIfAbsent(edge.end) { mutableListOf() }.add(edge.start)
+                    }
+                } else {
+                    graph.computeIfAbsent(startGeoPoint) { mutableListOf() }.add(endGeoPoint)
+                }
             }
         }
 
-        splitEdgesAtIntersections(graph)
         connectIntersectingWays(graph, 7.0)
 
         DataHolder.graph = graph
-        //logLongMessage("gps_app-mainactivity: - graph: ", DataHolder.graph.toString())
 
         return graph
-    }
-
-    private fun logLongMessage(tag: String, message: String) {
-        val maxLogSize = 2500
-        for (i in 0..message.length / maxLogSize) {
-            val start = i * maxLogSize
-            var end = (i + 1) * maxLogSize
-            end = if (end > message.length) message.length else end
-            Log.d(tag, message.substring(start, end))
-        }
     }
 
     private fun distanceBetweenPoints(p1: GeoPoint, p2: GeoPoint): Double {
