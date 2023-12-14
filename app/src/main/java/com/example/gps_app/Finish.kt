@@ -21,7 +21,6 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.cos
 import kotlin.math.sin
-import kotlin.math.min
 
 class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
 
@@ -55,6 +54,8 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
 
                 withContext(Dispatchers.Main) {
                     drawSolutionOnImage()
+                    drawLogPolarCoordinatesOnImage()
+                    drawHistogramOnImage()
                     progressBar.visibility = View.GONE
                     progressText.visibility = View.GONE
                 }
@@ -102,6 +103,64 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
         imageView.setImageBitmap(bitmap)
         Log.d("MapCanva-Finish-drawSolutionOnImage()", "Kirajzolás befejezve")
     }
+
+    fun drawLogPolarGrid(canvas: Canvas, paint: Paint, numRadiusBins: Int, numAngleBins: Int, centerX: Float, centerY: Float, maxRadius: Float) {
+        // Sugár (radius) bin-ek rajzolása
+        for (i in 0 until numRadiusBins) {
+            val radius = (i.toFloat() / numRadiusBins) * maxRadius
+            canvas.drawCircle(centerX, centerY, radius, paint)
+        }
+
+        // Szögek (angle) bin-ek rajzolása
+        for (j in 0 until numAngleBins) {
+            val angle = (j.toFloat() / numAngleBins) * (2 * Math.PI).toFloat()
+            val xEnd = centerX + maxRadius * cos(angle)
+            val yEnd = centerY + maxRadius * sin(angle)
+            canvas.drawLine(centerX, centerY, xEnd, yEnd, paint)
+        }
+    }
+
+    // A függvény hívása a megfelelő helyen a Finish osztályban:
+    private fun drawLogPolarCoordinatesOnImage() {
+        val shapeContext = ShapeContext(CanvasView.DataHolder.graph, solution)
+        val (numBinsRadius, numBinsAngle) = shapeContext.getNumBins()
+
+        val canvas = Canvas(bitmap)
+        val paint = Paint().apply {
+            color = Color.MAGENTA
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
+        }
+
+        // A logpolár koordináta rendszer középpontjának és sugárának beállítása
+        val centerX = bitmap.width / 2f
+        val centerY = bitmap.height / 2f
+        val maxRadius = centerX.coerceAtMost(centerY) // Például a kisebbik érték
+
+        drawLogPolarGrid(canvas, paint, numBinsRadius, numBinsAngle, centerX, centerY, maxRadius)
+
+        imageView.setImageBitmap(bitmap)
+        Log.d("MapCanva-Finish", "Logpolár koordináta rendszer kirajzolva")
+    }
+
+    private fun drawHistogramOnImage() {
+        val shapeContext = ShapeContext(CanvasView.DataHolder.graph, solution)
+        val histogramPoints = shapeContext.getHistogramVisualization()
+
+        val canvas = Canvas(bitmap)
+        val paint = Paint().apply {
+            color = Color.MAGENTA
+            strokeWidth = 3f
+        }
+
+        histogramPoints.forEach { (x, y) ->
+            canvas.drawCircle(x, y, 5f, paint)
+        }
+
+        imageView.setImageBitmap(bitmap)
+        Log.d("MapCanva-Finish", "Histogram kirajzolva")
+    }
+
 
     private fun drawGraphOnImage(bitmap: Bitmap): Bitmap {
         val canvas = Canvas(bitmap)

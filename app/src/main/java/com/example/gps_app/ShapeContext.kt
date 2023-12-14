@@ -2,9 +2,12 @@ package com.example.gps_app
 
 import android.util.Log
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.exp
 import kotlin.math.pow
+import kotlin.math.sin
 
-class ShapeContext(originalGraph: CanvasView.Graph, transformedGraph: CanvasView.Graph) {
+class ShapeContext(private val originalGraph: CanvasView.Graph, private val transformedGraph: CanvasView.Graph) {
 
     data class LogPolarCoordinate(val radius: Double, val angle: Double)
 
@@ -37,7 +40,7 @@ class ShapeContext(originalGraph: CanvasView.Graph, transformedGraph: CanvasView
         return similarityScore
     }
 
-    private fun calculateLogPolarCoordinates(graph: CanvasView.Graph): List<LogPolarCoordinate> {
+    fun calculateLogPolarCoordinates(graph: CanvasView.Graph): List<LogPolarCoordinate> {
         val logPolarCoordinates = mutableListOf<LogPolarCoordinate>()
         graph.edges.forEach { edge ->
             logPolarCoordinates.add(cartesianToLogPolar(edge.start))
@@ -48,7 +51,7 @@ class ShapeContext(originalGraph: CanvasView.Graph, transformedGraph: CanvasView
 
     private fun createHistograms(logPolarCoordinates: List<LogPolarCoordinate>): List<Histogram> {
         return logPolarCoordinates.mapIndexed { index, coordinate ->
-            val histogram = Histogram(9, 3)
+            val histogram = Histogram(12, 15)
             logPolarCoordinates.forEach { otherCoordinate ->
                 val binRadius = determineBinRadius(coordinate.radius, otherCoordinate.radius)
                 val binAngle = determineBinAngle(coordinate.angle, otherCoordinate.angle)
@@ -102,7 +105,7 @@ class ShapeContext(originalGraph: CanvasView.Graph, transformedGraph: CanvasView
         return (normalizedDistance * numBinsRadius).toInt().coerceIn(0, numBinsRadius - 1)
     }
 
-    private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int = 10): Int {
+    private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int = 15): Int {
         val diffAngle = abs(angle1 - angle2)
         val normalizedAngle = diffAngle / (2 * Math.PI)
 
@@ -114,7 +117,6 @@ class ShapeContext(originalGraph: CanvasView.Graph, transformedGraph: CanvasView
         return graph.vertices.map { vertex -> val coordinate = cartesianToLogPolar(vertex)
             coordinate}
     }
-
      */
 
     private fun cartesianToLogPolar(vertex: CanvasView.Vertex): LogPolarCoordinate {
@@ -122,5 +124,28 @@ class ShapeContext(originalGraph: CanvasView.Graph, transformedGraph: CanvasView
         val angle = kotlin.math.atan2(vertex.y, vertex.x)
         val logRadius = if (radius > 0) kotlin.math.ln(radius) else 0.0
         return LogPolarCoordinate(logRadius, angle)
+    }
+
+    fun getHistogramVisualization(): List<Pair<Float, Float>> {
+        val logPolarCoordinates = calculateLogPolarCoordinates(originalGraph)
+        val histograms = createHistograms(logPolarCoordinates)
+
+        val visualizationPoints = mutableListOf<Pair<Float, Float>>()
+        histograms.forEach { histogram ->
+            histogram.bins.forEachIndexed { rowIndex, row ->
+                row.forEachIndexed { columnIndex, _ ->
+                    // Itt a rowIndex és columnIndex alapján számoljuk ki a vizualizációs pontokat
+                    val x = rowIndex.toFloat() * 20f // 20f lehet a bin szélessége
+                    val y = columnIndex.toFloat() * 20f // 20f lehet a bin magassága
+                    visualizationPoints.add(Pair(x, y))
+                }
+            }
+        }
+        return visualizationPoints
+    }
+
+    fun getNumBins(): Pair<Int, Int> {
+        // A binRadius és binAngle számának visszaadása
+        return Pair(10, 15) // például, itt állíthatod be a kívánt értékeket
     }
 }

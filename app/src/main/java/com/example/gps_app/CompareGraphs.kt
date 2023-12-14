@@ -87,17 +87,17 @@ class CompareGraph {
     }
 
     suspend fun findBestRotationMatch(largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph, canvasWidth: Int, canvasHeight: Int): CanvasView.Graph {
-        val scaleFactors = listOf(1.0, 1.1, 1.2)
+        val scaleFactors = listOf(1.0)
         val spiralPoints = generateSpiralPoints(canvasWidth, canvasHeight)
         var bestMatch: CanvasView.Graph? = null
         var bestMatchScore = Double.MAX_VALUE
 
         coroutineScope {
-            val totalIterations = spiralPoints.size * scaleFactors.size * 36
+            val totalIterations = spiralPoints.size * scaleFactors.size * 72
             var currentIteration = 0
             val jobs = spiralPoints.flatMap { spiralPoint ->
                 scaleFactors.flatMap { scaleFactor ->
-                    (0 until 360 step 10).map { angle ->
+                    (0 until 360 step 5).map { angle ->
                         async(Dispatchers.Default) {
                             val scaledGraph = scaleGraph(transformedGraph, scaleFactor)
                             val rotatedGraph = rotateGraph(scaledGraph, angle.toDouble(), calculateCentroid(scaledGraph.vertices))
@@ -174,7 +174,7 @@ class CompareGraph {
             spiralPoints.add(CanvasView.Vertex(x, y))
 
             angle += angleIncrement
-            radius += 0.5 + 0.05 * angle / Math.PI // A sugár növekedése arányos az elfordulás szögével
+            radius += 0.75 + 0.05 * angle / Math.PI // A sugár növekedése arányos az elfordulás szögével
 
             // Ellenőrzés a túl nagy lépések elkerülésére
             if (radius > maxRadius) {
