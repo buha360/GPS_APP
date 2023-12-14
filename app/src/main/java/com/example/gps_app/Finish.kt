@@ -1,216 +1,156 @@
 package com.example.gps_app
 
+import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.drawable.Drawable
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.ImageView
+import android.widget.ProgressBar
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Polyline
 import java.io.File
-import kotlin.math.pow
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.math.min
 
-class Finish : AppCompatActivity() {
+class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
 
-    data class FloatPoint(val x: Float, val y: Float)
-
-    object DataHolder {
-        var bestMatch: List<CompareGraph.Point>? = null
-    }
-
-    private lateinit var mMap: MapView
-
-    private fun geoPointToCanvasPoint(
-        geoPoint: MainActivity.GeoPoint,
-        latRange: Pair<Double, Double>,
-        lonRange: Pair<Double, Double>,
-        width: Int,
-        height: Int
-    ): FloatPoint {
-        val xNormalized = (geoPoint.lon - lonRange.first) / (lonRange.second - lonRange.first)
-        val yNormalized =
-            1.0 - (geoPoint.lat - latRange.first) / (latRange.second - latRange.first)  // invert y
-
-        val x = (xNormalized * width).toFloat()
-        val y = (yNormalized * height).toFloat()
-
-        return FloatPoint(x, y)
-    }
-
-    private fun canvasPointToGeoPoint(
-        canvasPoint: FloatPoint,
-        latRange: Pair<Double, Double>,
-        lonRange: Pair<Double, Double>,
-        width: Int,
-        height: Int
-    ): MainActivity.GeoPoint {
-        val xNormalized = canvasPoint.x / width
-        val yNormalized = 1.0 - (canvasPoint.y / height)  // invert y
-
-        val lon = lonRange.first + xNormalized * (lonRange.second - lonRange.first)
-        val lat = latRange.first + yNormalized * (latRange.second - latRange.first)
-
-        return MainActivity.GeoPoint(lat, lon)
-    }
+    private lateinit var solution: CanvasView.Graph
+    private lateinit var bitmap: Bitmap
+    private lateinit var progressBar: ProgressBar
+    private lateinit var imageView: ImageView
+    private lateinit var progressText: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.finish)
 
-        // Initialize and set up OpenStreetMap
-        initOpenStreetMap()
-        drawGraphOnMap(MainActivity.DataHolder.graph)
+        imageView = findViewById(R.id.imageView)
+        progressBar = findViewById(R.id.progressBar)
+        progressText = findViewById(R.id.progressText)
 
-        CoroutineScope(Dispatchers.IO).launch {
-            calculateBestMatch()
-        }
-    }
+        loadImage()
 
-    private fun initOpenStreetMap() {
-        mMap = findViewById(R.id.osmmap)
-        mMap.setTileSource(TileSourceFactory.MAPNIK)
-        mMap.setMultiTouchControls(true)
+        imageView.post {
+            val width = imageView.width
+            val height = imageView.height
 
-        // Az átadott adatok beállítása:
-        val zoomLevel = MainActivity.DataHolder.mapZoomLevel!!
-        val latitude = MainActivity.DataHolder.mapLatitude!!
-        val longitude = MainActivity.DataHolder.mapLongitude!!
+            CoroutineScope(Dispatchers.IO).launch {
+                val cGraph = CompareGraph.getInstance()
+                cGraph.progressListener = this@Finish
 
-        mMap.controller.setZoom(zoomLevel)
-        mMap.setExpectedCenter(org.osmdroid.util.GeoPoint(latitude, longitude))
-    }
+                solution = MainActivity.DataHolder.largeGraph?.let {
+                    cGraph.findBestRotationMatch(it, CanvasView.DataHolder.graph, width, height)
+                } ?: CanvasView.Graph()
 
-    private fun drawGraphOnMap(mainGraph: Map<MainActivity.GeoPoint, MutableList<MainActivity.GeoPoint>>?) {
-        mainGraph?.forEach { (key, value) ->
-            val startPoint = org.osmdroid.util.GeoPoint(key.lat, key.lon)
-            value.forEach { adjPoint ->
-                val endPoint = org.osmdroid.util.GeoPoint(adjPoint.lat, adjPoint.lon)
-
-                // Create and set up the Polyline overlay for each key-adjacent point pair
-                val polyline = Polyline(mMap)
-                polyline.setPoints(listOf(startPoint, endPoint))
-                polyline.setColor(Color.RED)
-                mMap.overlays.add(polyline)
+                withContext(Dispatchers.Main) {
+                    drawSolutionOnImage()
+                    progressBar.visibility = View.GONE
+                    progressText.visibility = View.GONE
+                }
             }
         }
-        mMap.invalidate() // Refresh the map
     }
 
-    private suspend fun calculateBestMatch() {
-        withContext(Dispatchers.Main) {
-            val cGraphs = CompareGraph.getInstance()
-            val mainGraph = MainActivity.DataHolder.graph
-            val canvasGraph = CanvasView.DataHolder.graph
+    @SuppressLint("SetTextI18n")
+    override fun onProgressUpdate(progress: Int) {
+        runOnUiThread {
+            progressBar.progress = progress
+            progressText.text = "$progress%"
+        }
+    }
 
-            // 1. Projektáljuk a geokoordinátás gráfot a vászon pontokra
-            val projectedMainGraph = projectMainGraphToCanvas(mainGraph)
+    private fun drawSolutionOnImage() {
+        Log.d("MapCanva-Finish-drawSolutionOnImage()", "Kirajzolás folyamatban")
+        val canvas = Canvas(bitmap)
+        val greenPaint = Paint().apply {
+            color = Color.GREEN
+            strokeWidth = 5f
+        }
 
-            // 2. Keresünk legjobb forgatási egyezést a projektált gráfon
-            val rotationMatches = canvasGraph?.let {
-                cGraphs.findBestRotationMatch(
-                    projectedMainGraph,
-                    it
+        val yellowPaint = Paint().apply {
+            color = Color.YELLOW
+            strokeWidth = 3f
+            style = Paint.Style.STROKE
+        }
+
+        // Kirajzoljuk a megoldást zöld vonallal
+        solution.edges.forEach { edge ->
+            canvas.drawLine(
+                edge.start.x.toFloat(), edge.start.y.toFloat(),
+                edge.end.x.toFloat(), edge.end.y.toFloat(),
+                greenPaint
+            )
+        }
+
+        // Kirajzoljuk a legközelebbi pontokat sárga körökkel
+        CompareGraph.DataHolder.closestMatches.forEach { (_, matchedVertex) ->
+            canvas.drawCircle(matchedVertex.x.toFloat(), matchedVertex.y.toFloat(), 10f, yellowPaint)
+        }
+
+        val imageView: ImageView = findViewById(R.id.imageView)
+        imageView.setImageBitmap(bitmap)
+        Log.d("MapCanva-Finish-drawSolutionOnImage()", "Kirajzolás befejezve")
+    }
+
+    private fun drawGraphOnImage(bitmap: Bitmap): Bitmap {
+        val canvas = Canvas(bitmap)
+        val redPaint = Paint().apply {
+            color = Color.RED
+            strokeWidth = 4f
+        }
+
+        val bluePaint = Paint().apply {
+            color = Color.BLUE
+            strokeWidth = 4f
+        }
+
+        // Rajzoljuk ki a térkép gráfot
+        val mapGraph = MainActivity.DataHolder.largeGraph
+        mapGraph?.forEach { (vertex, neighbors) ->
+            neighbors.forEach { neighbor ->
+                canvas.drawLine(
+                    vertex.x.toFloat(), vertex.y.toFloat(),
+                    neighbor.x.toFloat(), neighbor.y.toFloat(),
+                    redPaint
                 )
             }
-
-            // Válasszuk ki a legjobb egyezést a rotationMatches-ből (most csak az elsőt választjuk ki)
-            val bestRotationMatch = rotationMatches?.values?.firstOrNull()
-
-            if (bestRotationMatch != null) {
-                // 3. Az inverz projektálás
-                val inverseProjectedList = inverseProjectGraph(bestRotationMatch)
-
-                // Transzformáljuk a mainGraph-ot, hogy megfeleljen a CompareGraph.Point típusnak
-                val transformedMainGraph = transformMainGraphToCompareGraphPoint(mainGraph)
-
-                val inverseProjectedGraph = CanvasView.Graph()
-                inverseProjectedList.forEach { point ->
-                    inverseProjectedGraph.vertices.add(CanvasView.Vertex(point.x, point.y))
-                }
-
-                // 4. Újra keresünk subgraphot az eredeti geokoordinátás gráfon
-                val finalBestMatch = cGraphs.findSubgraph(transformedMainGraph, inverseProjectedGraph)
-
-                // Az eredményt tároljuk a DataHolder-ben
-                DataHolder.bestMatch = finalBestMatch
-                Log.d("gps_app-finish: - bestMatch: ", DataHolder.bestMatch.toString())
-                drawBestMatchOnMap(finalBestMatch)
-            }else{
-                Log.d("gps_app-finish: - bestMatch: ", "Nincs egyezes")
-            }
         }
+
+        // Rajzoljuk ki a CanvasView-ban lévő rajzolt objektumokat
+        val drawnGraph = CanvasView.DataHolder.graph
+        drawnGraph.edges.forEach { edge ->
+            canvas.drawLine(
+                edge.start.x.toFloat(), edge.start.y.toFloat(),
+                edge.end.x.toFloat(), edge.end.y.toFloat(),
+                bluePaint
+            )
+        }
+
+        return bitmap
     }
 
-    private fun transformMainGraphToCompareGraphPoint(graph: MutableMap<MainActivity.GeoPoint, MutableList<MainActivity.GeoPoint>>?): MutableMap<CompareGraph.Point, MutableList<CompareGraph.Point>> {
-        val transformedGraph = mutableMapOf<CompareGraph.Point, MutableList<CompareGraph.Point>>()
-        graph?.forEach { (key, value) ->
-            val transformedKey = CompareGraph.Point(key.lat, key.lon)
-            val transformedValue = value.map { CompareGraph.Point(it.lat, it.lon) }.toMutableList()
-            transformedGraph[transformedKey] = transformedValue
-        }
-        return transformedGraph
-    }
+    private fun loadImage() {
+        val imageView: ImageView = findViewById(R.id.imageView)
+        val directory = getExternalFilesDir(null)?.absolutePath + "/gps_app"
+        val file = File(directory, "map_snapshot.png")
 
-    private fun projectMainGraphToCanvas(mainGraph: Map<MainActivity.GeoPoint, MutableList<MainActivity.GeoPoint>>?): MutableMap<CompareGraph.Point, MutableList<CompareGraph.Point>> {
-        val projectedGraph = mutableMapOf<CompareGraph.Point, MutableList<CompareGraph.Point>>()
-        val latRange = Pair(
-            MainActivity.DataHolder.mapLatitude!! - 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!),
-            MainActivity.DataHolder.mapLatitude!! + 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!)
-        )
-        val lonRange = Pair(
-            MainActivity.DataHolder.mapLongitude!! - 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!),
-            MainActivity.DataHolder.mapLongitude!! + 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!)
-        )
-        mainGraph?.forEach { (key, value) ->
-            val start = geoPointToCanvasPoint(key, latRange, lonRange, 400, 400)
-            val neighbors = value.map { geoPointToCanvasPoint(it, latRange, lonRange, 400, 400) }
-            projectedGraph[CompareGraph.Point(start.x.toDouble(), start.y.toDouble())] =
-                neighbors.map { CompareGraph.Point(it.x.toDouble(), it.y.toDouble()) }.toMutableList()
-        }
-        return projectedGraph
-    }
-
-    private fun inverseProjectGraph(projectedGraph: List<CompareGraph.Point>): List<CompareGraph.Point> {
-        val inverseList = mutableListOf<CompareGraph.Point>()
-        val latRange = Pair(
-            MainActivity.DataHolder.mapLatitude!! - 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!),
-            MainActivity.DataHolder.mapLatitude!! + 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!)
-        )
-        val lonRange = Pair(
-            MainActivity.DataHolder.mapLongitude!! - 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!),
-            MainActivity.DataHolder.mapLongitude!! + 200 * 2.0.pow(-MainActivity.DataHolder.mapZoomLevel!!)
-        )
-        projectedGraph.forEach { point ->
-            val geoPoint = canvasPointToGeoPoint(FloatPoint(point.x.toFloat(), point.y.toFloat()), latRange, lonRange, 400, 400)
-            inverseList.add(CompareGraph.Point(geoPoint.lat, geoPoint.lon))
-        }
-        return inverseList
-    }
-
-    private fun drawBestMatchOnMap(bestMatch: List<CompareGraph.Point>?) {
-        bestMatch?.takeIf { it.size > 1 }?.let {
-            for (i in 0 until it.size - 1) {
-                val startPoint = org.osmdroid.util.GeoPoint(it[i].x, it[i].y)
-                val endPoint = org.osmdroid.util.GeoPoint(it[i+1].x, it[i+1].y)
-
-                val polyline = Polyline(mMap)
-                polyline.setPoints(listOf(startPoint, endPoint))
-                polyline.setColor(Color.BLUE)
-                mMap.overlays.add(polyline)
-            }
-
-            mMap.invalidate()
+        if (file.exists()) {
+            bitmap = BitmapFactory.decodeFile(file.absolutePath).copy(Bitmap.Config.ARGB_8888, true)
+            bitmap = drawGraphOnImage(bitmap)
+            imageView.setImageBitmap(bitmap)
+        } else {
+            Toast.makeText(this, "A kép nem található!", Toast.LENGTH_SHORT).show()
         }
     }
 }
