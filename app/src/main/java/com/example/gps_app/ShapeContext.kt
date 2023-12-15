@@ -95,7 +95,7 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
         return similarityScore
     }
 
-    private fun determineBinRadius(radius1: Double, radius2: Double, numBinsRadius: Int = 10): Int {
+    private fun determineBinRadius(radius1: Double, radius2: Double, numBinsRadius: Int = 12): Int {
         val maxRadius = 0.1 // vagy egy másik megfelelő érték
         val minRadius = 0.0
 
@@ -105,7 +105,7 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
         return (normalizedDistance * numBinsRadius).toInt().coerceIn(0, numBinsRadius - 1)
     }
 
-    private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int = 15): Int {
+    private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int = 26): Int {
         val diffAngle = abs(angle1 - angle2)
         val normalizedAngle = diffAngle / (2 * Math.PI)
 
@@ -146,6 +146,6 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
 
     fun getNumBins(): Pair<Int, Int> {
         // A binRadius és binAngle számának visszaadása
-        return Pair(10, 15) // például, itt állíthatod be a kívánt értékeket
+        return Pair(12, 26) // például, itt állíthatod be a kívánt értékeket
     }
 }

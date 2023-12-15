@@ -104,7 +104,7 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
         Log.d("MapCanva-Finish-drawSolutionOnImage()", "Kirajzolás befejezve")
     }
 
-    fun drawLogPolarGrid(canvas: Canvas, paint: Paint, numRadiusBins: Int, numAngleBins: Int, centerX: Float, centerY: Float, maxRadius: Float) {
+    private fun drawLogPolarGrid(canvas: Canvas, paint: Paint, numRadiusBins: Int, numAngleBins: Int, centerX: Float, centerY: Float, maxRadius: Float) {
         // Sugár (radius) bin-ek rajzolása
         for (i in 0 until numRadiusBins) {
             val radius = (i.toFloat() / numRadiusBins) * maxRadius
