@@ -2,7 +2,7 @@ package com.example.gps_app
 
 import kotlin.math.exp
 
-class NeuralLayer(inputSize: Int, outputSize: Int) {
+class NeuralLayer(val inputSize: Int, val outputSize: Int) {
     var weights: Array<DoubleArray> = Array(outputSize) { DoubleArray(inputSize) { Math.random() } }
     var biases: DoubleArray = DoubleArray(outputSize) { Math.random() }
 
@@ -18,7 +18,7 @@ class NeuralLayer(inputSize: Int, outputSize: Int) {
     private fun sigmoid(x: Double): Double = 1.0 / (1 + exp(-x))
 }
 
-class NeuralNetwork(private val layers: Array<NeuralLayer>) {
+class NeuralNetwork(val layers: Array<NeuralLayer>) {
 
     fun forward(input: DoubleArray): DoubleArray {
         var currentOutput = input

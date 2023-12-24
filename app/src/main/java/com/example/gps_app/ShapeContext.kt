@@ -40,7 +40,7 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
         return similarityScore
     }
 
-    fun calculateLogPolarCoordinates(graph: CanvasView.Graph): List<LogPolarCoordinate> {
+    private fun calculateLogPolarCoordinates(graph: CanvasView.Graph): List<LogPolarCoordinate> {
         val logPolarCoordinates = mutableListOf<LogPolarCoordinate>()
         graph.edges.forEach { edge ->
             logPolarCoordinates.add(cartesianToLogPolar(edge.start))
@@ -51,7 +51,7 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
 
     private fun createHistograms(logPolarCoordinates: List<LogPolarCoordinate>): List<Histogram> {
         return logPolarCoordinates.mapIndexed { index, coordinate ->
-            val histogram = Histogram(12, 15)
+            val histogram = Histogram(25, 25)
             logPolarCoordinates.forEach { otherCoordinate ->
                 val binRadius = determineBinRadius(coordinate.radius, otherCoordinate.radius)
                 val binAngle = determineBinAngle(coordinate.angle, otherCoordinate.angle)
@@ -111,13 +111,6 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
 
         return (normalizedAngle * numBinsAngle).toInt().coerceIn(0, numBinsAngle - 1)
     }
-
-    /*
-    private fun calculateLogPolarCoordinates(graph: CanvasView.Graph): List<LogPolarCoordinate> {
-        return graph.vertices.map { vertex -> val coordinate = cartesianToLogPolar(vertex)
-            coordinate}
-    }
-     */
 
     private fun cartesianToLogPolar(vertex: CanvasView.Vertex): LogPolarCoordinate {
         val radius = kotlin.math.sqrt(vertex.x.pow(2) + vertex.y.pow(2))

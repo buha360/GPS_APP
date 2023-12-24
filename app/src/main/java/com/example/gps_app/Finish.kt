@@ -22,6 +22,25 @@ import java.io.File
 import kotlin.math.cos
 import kotlin.math.sin
 
+fun CanvasView.Graph.toVertexMap(): MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>> {
+    val map = mutableMapOf<CanvasView.Vertex, MutableList<CanvasView.Vertex>>()
+    this.edges.forEach { edge ->
+        map.computeIfAbsent(edge.start) { mutableListOf() }.add(edge.end)
+        map.computeIfAbsent(edge.end) { mutableListOf() }.add(edge.start)
+    }
+    return map
+}
+
+fun MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>.toGraph(): CanvasView.Graph {
+    val graph = CanvasView.Graph()
+    this.forEach { (vertex, neighbors) ->
+        neighbors.forEach { neighbor ->
+            graph.edges.add(CanvasView.Edge(vertex, neighbor))
+        }
+    }
+    return graph
+}
+
 class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
 
     private lateinit var solution: CanvasView.Graph
@@ -40,6 +59,7 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
 
         loadImage()
 
+        /*
         imageView.post {
             val width = imageView.width
             val height = imageView.height
@@ -49,13 +69,48 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
                 cGraph.progressListener = this@Finish
 
                 solution = MainActivity.DataHolder.largeGraph?.let {
-                    cGraph.findBestRotationMatch(it, CanvasView.DataHolder.graph, width, height)
+                    // cGraph.findBestRotationMatch(it, CanvasView.DataHolder.graph, width, height)
+                    cGraph.findBestRotationMatch(it, CanvasView.DataHolder.graph, )
                 } ?: CanvasView.Graph()
 
                 withContext(Dispatchers.Main) {
                     drawSolutionOnImage()
                     drawLogPolarCoordinatesOnImage()
                     drawHistogramOnImage()
+                    progressBar.visibility = View.GONE
+                    progressText.visibility = View.GONE
+                }
+            }
+        }
+         */
+
+        imageView.post {
+            CoroutineScope(Dispatchers.IO).launch {
+                // Az eredeti largeGraph egy MutableMap, és átalakítjuk CanvasView.Graph típusúvá.
+                val largeGraphAsMap = MainActivity.DataHolder.largeGraph ?: mutableMapOf()
+                val largeGraph = largeGraphAsMap.toGraph()  // Convert to Graph
+
+                val smallGraph = CanvasView.DataHolder.graph
+                val cGraph = CompareGraph.getInstance()
+                cGraph.progressListener = this@Finish
+
+                // Genetikus algoritmus inicializálása a már átalakított largeGraph-al.
+                val geneticAlgorithm = GeneticAlgorithm(
+                    populationSize = 5,
+                    geneticCodeLength = 100, // Frissítsd a megfelelő hosszra
+                    mutationRate = 0.01,
+                    largeGraph = largeGraph,  // Itt már a Graph típusú objektumot használjuk
+                    smallGraph = smallGraph
+                )
+
+                // Az egyedek evolúciójának futtatása
+                geneticAlgorithm.evolve()
+
+                // Legjobb megoldás keresése a genetikus algoritmus egyedei között
+                solution = cGraph.findBestRotationMatch(largeGraphAsMap, smallGraph, geneticAlgorithm)  // Itt a Map típusú objektumot használjuk
+
+                withContext(Dispatchers.Main) {
+                    drawSolutionOnImage()  // Megjeleníti a megoldást
                     progressBar.visibility = View.GONE
                     progressText.visibility = View.GONE
                 }

@@ -29,8 +29,8 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
     }
 
     class Graph {
-        val vertices = mutableListOf<Vertex>()
-        val edges = mutableListOf<Edge>()
+        var vertices = mutableListOf<Vertex>()
+        var edges = mutableListOf<Edge>()
 
         override fun toString(): String {
             return "Vertices: $vertices, Edges: $edges"
@@ -143,7 +143,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         for (data in pathData) {
             if (data == "U") {
                 if (segment.isNotEmpty()) {
-                    val simplifiedSegment = douglasPeucker(segment, 18f) // 15 pixel tolerancia
+                    val simplifiedSegment = douglasPeucker(segment, 10f) // 10 pixel tolerancia
                     for (i in 1 until simplifiedSegment.size) {
                         graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
                     }

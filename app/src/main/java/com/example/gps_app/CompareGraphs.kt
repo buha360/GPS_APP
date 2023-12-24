@@ -86,9 +86,11 @@ class CompareGraph {
         return translatedGraph
     }
 
+    /*
     suspend fun findBestRotationMatch(largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph, canvasWidth: Int, canvasHeight: Int): CanvasView.Graph {
         val scaleFactors = listOf(1.0)
         val spiralPoints = generateSpiralPoints(canvasWidth, canvasHeight)
+        Log.d("spiralPoints","Ennyi pont keletkezik: $spiralPoints")
         var bestMatch: CanvasView.Graph? = null
         var bestMatchScore = Double.MAX_VALUE
 
@@ -130,6 +132,39 @@ class CompareGraph {
 
         return bestMatch ?: transformedGraph
     }
+     */
+
+    suspend fun findBestRotationMatch(largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, originalGraph: CanvasView.Graph, geneticAlgorithm: GeneticAlgorithm): CanvasView.Graph {
+        var bestMatch: CanvasView.Graph? = null
+        var bestMatchScore = Double.MAX_VALUE
+
+        coroutineScope {
+            // Az egyedek inicializálása és tesztelése
+            geneticAlgorithm.evolve()
+
+            for (individual in geneticAlgorithm.population) {
+                // Az egyed által generált gráf
+                val transformedGraph = individual.applyNeuralNetworkToGraph(originalGraph)
+
+                // Az A* algoritmus használata az összekötéshez
+                val currentMatches = findClosestPoints(largeGraph, transformedGraph)
+                val pathSegment = buildCompletePath(currentMatches, largeGraph)
+
+                // Shape Context használata az illeszkedés értékelésére
+                val shapeContext = ShapeContext(transformedGraph, pathSegment)
+                val similarityScore = shapeContext.compareGraphs()
+
+                // A legjobb illeszkedés frissítése
+                if (similarityScore < bestMatchScore) {
+                    bestMatchScore = similarityScore
+                    bestMatch = pathSegment
+                    Log.d("GeneticAlgorithm-CG", "BestMatchScore: $bestMatchScore BestMatch: $bestMatch")
+                }
+            }
+        }
+
+        return bestMatch ?: originalGraph // Ha nincs találat, az eredeti gráfot adja vissza
+    }
 
     private fun buildCompletePath(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
         val completeGraph = CanvasView.Graph()
@@ -163,8 +198,8 @@ class CompareGraph {
         val centerY = canvasHeight / 2.0
         var angle = 0.0
         var radius = 0.0
-        val maxRadius = min(canvasWidth, canvasHeight) / 2.4
-        val angleIncrement = Math.PI / 16 // Állandó szög növekedés
+        val maxRadius = min(canvasWidth, canvasHeight) / 2.8
+        val angleIncrement = Math.PI / 8 // Állandó szög növekedés
         val spiralPoints = mutableListOf<CanvasView.Vertex>()
         var count = 0
 
@@ -174,7 +209,7 @@ class CompareGraph {
             spiralPoints.add(CanvasView.Vertex(x, y))
 
             angle += angleIncrement
-            radius += 0.75 + 0.05 * angle / Math.PI // A sugár növekedése arányos az elfordulás szögével
+            radius += 0.75 + 0.08 * angle / Math.PI // A sugár növekedése arányos az elfordulás szögével
 
             // Ellenőrzés a túl nagy lépések elkerülésére
             if (radius > maxRadius) {
