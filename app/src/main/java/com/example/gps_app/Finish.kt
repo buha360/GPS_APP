@@ -21,25 +21,8 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.cos
 import kotlin.math.sin
-
-fun CanvasView.Graph.toVertexMap(): MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>> {
-    val map = mutableMapOf<CanvasView.Vertex, MutableList<CanvasView.Vertex>>()
-    this.edges.forEach { edge ->
-        map.computeIfAbsent(edge.start) { mutableListOf() }.add(edge.end)
-        map.computeIfAbsent(edge.end) { mutableListOf() }.add(edge.start)
-    }
-    return map
-}
-
-fun MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>.toGraph(): CanvasView.Graph {
-    val graph = CanvasView.Graph()
-    this.forEach { (vertex, neighbors) ->
-        neighbors.forEach { neighbor ->
-            graph.edges.add(CanvasView.Edge(vertex, neighbor))
-        }
-    }
-    return graph
-}
+import kotlin.math.min
+import kotlin.math.sqrt
 
 class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
 
@@ -59,7 +42,6 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
 
         loadImage()
 
-        /*
         imageView.post {
             val width = imageView.width
             val height = imageView.height
@@ -69,54 +51,88 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
                 cGraph.progressListener = this@Finish
 
                 solution = MainActivity.DataHolder.largeGraph?.let {
-                    // cGraph.findBestRotationMatch(it, CanvasView.DataHolder.graph, width, height)
-                    cGraph.findBestRotationMatch(it, CanvasView.DataHolder.graph, )
+                    cGraph.findBestRotationMatch(it, CanvasView.DataHolder.graph, width, height)
                 } ?: CanvasView.Graph()
+
+                val evenlySpacedPoints = generatePoissonDiskPoints(width, height, 45.0, 165)
+                Log.d("spiralPoints", "Generált pontok száma kirajzolasnal: ${evenlySpacedPoints.size}")
 
                 withContext(Dispatchers.Main) {
                     drawSolutionOnImage()
-                    drawLogPolarCoordinatesOnImage()
-                    drawHistogramOnImage()
-                    progressBar.visibility = View.GONE
-                    progressText.visibility = View.GONE
-                }
-            }
-        }
-         */
-
-        imageView.post {
-            CoroutineScope(Dispatchers.IO).launch {
-                // Az eredeti largeGraph egy MutableMap, és átalakítjuk CanvasView.Graph típusúvá.
-                val largeGraphAsMap = MainActivity.DataHolder.largeGraph ?: mutableMapOf()
-                val largeGraph = largeGraphAsMap.toGraph()  // Convert to Graph
-
-                val smallGraph = CanvasView.DataHolder.graph
-                val cGraph = CompareGraph.getInstance()
-                cGraph.progressListener = this@Finish
-
-                // Genetikus algoritmus inicializálása a már átalakított largeGraph-al.
-                val geneticAlgorithm = GeneticAlgorithm(
-                    populationSize = 5,
-                    geneticCodeLength = 100, // Frissítsd a megfelelő hosszra
-                    mutationRate = 0.01,
-                    largeGraph = largeGraph,  // Itt már a Graph típusú objektumot használjuk
-                    smallGraph = smallGraph
-                )
-
-                // Az egyedek evolúciójának futtatása
-                geneticAlgorithm.evolve()
-
-                // Legjobb megoldás keresése a genetikus algoritmus egyedei között
-                solution = cGraph.findBestRotationMatch(largeGraphAsMap, smallGraph, geneticAlgorithm)  // Itt a Map típusú objektumot használjuk
-
-                withContext(Dispatchers.Main) {
-                    drawSolutionOnImage()  // Megjeleníti a megoldást
+                    //drawPointsOnImage(evenlySpacedPoints)  // Megjeleníti a pontokat
+                    //drawLogPolarCoordinatesOnImage()
                     progressBar.visibility = View.GONE
                     progressText.visibility = View.GONE
                 }
             }
         }
     }
+
+    private fun generatePoissonDiskPoints(canvasWidth: Int, canvasHeight: Int, minDist: Double, numberOfPoints: Int): List<CanvasView.Vertex> {
+        val samplePoints = mutableListOf<CanvasView.Vertex>()
+        val activeList = mutableListOf<CanvasView.Vertex>()
+
+        // Kezdőpont hozzáadása
+        val initialPoint = CanvasView.Vertex(canvasWidth / 2.0, canvasHeight / 2.0)
+        samplePoints.add(initialPoint)
+        activeList.add(initialPoint)
+
+        val centerX = canvasWidth / 2.0
+        val centerY = canvasHeight / 2.0
+        val maxRadius = min(canvasWidth, canvasHeight) / 2.8
+
+        while (activeList.isNotEmpty() && samplePoints.size < numberOfPoints) {
+            val pointIndex = (Math.random() * activeList.size).toInt()
+            val point = activeList[pointIndex]
+            var found = false
+
+            for (i in 0 until numberOfPoints) {
+                val angle = Math.random() * 2 * Math.PI
+                val radius = minDist * (Math.random() + 1)
+                val newX = point.x + radius * cos(angle)
+                val newY = point.y + radius * sin(angle)
+                val newPoint = CanvasView.Vertex(newX, newY)
+
+                // Ellenőrizzük, hogy a pont a körön belül van-e és elegendő távolságra van-e a többi ponttól
+                val isInsideCircle = (newX - centerX) * (newX - centerX) + (newY - centerY) * (newY - centerY) <= maxRadius * maxRadius
+                val isFarEnough = samplePoints.none { existingPoint ->
+                    val dx = existingPoint.x - newX
+                    val dy = existingPoint.y - newY
+                    sqrt(dx * dx + dy * dy) < minDist
+                }
+
+                if (isInsideCircle && isFarEnough) {
+                    activeList.add(newPoint)
+                    samplePoints.add(newPoint)
+                    found = true
+                    break
+                }
+            }
+
+            if (!found) {
+                activeList.removeAt(pointIndex)
+            }
+        }
+
+        return samplePoints
+    }
+
+    private fun drawPointsOnImage(points: List<CanvasView.Vertex>) {
+        val canvas = Canvas(bitmap)
+        val pointPaint = Paint().apply {
+            color = Color.RED
+            strokeWidth = 10f
+            style = Paint.Style.FILL
+        }
+
+        points.forEach { point ->
+            canvas.drawCircle(point.x.toFloat(), point.y.toFloat(), 5f, pointPaint)
+        }
+
+        imageView.setImageBitmap(bitmap)
+        Log.d("MapCanva-Finish-drawPointsOnImage", "Pontok kirajzolva")
+    }
+
 
     @SuppressLint("SetTextI18n")
     override fun onProgressUpdate(progress: Int) {
@@ -192,30 +208,11 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
         val centerY = bitmap.height / 2f
         val maxRadius = centerX.coerceAtMost(centerY) // Például a kisebbik érték
 
-        drawLogPolarGrid(canvas, paint, numBinsRadius, numBinsAngle, centerX, centerY, maxRadius)
+        //drawLogPolarGrid(canvas, paint, numBinsRadius, numBinsAngle, centerX, centerY, maxRadius)
 
         imageView.setImageBitmap(bitmap)
         Log.d("MapCanva-Finish", "Logpolár koordináta rendszer kirajzolva")
     }
-
-    private fun drawHistogramOnImage() {
-        val shapeContext = ShapeContext(CanvasView.DataHolder.graph, solution)
-        val histogramPoints = shapeContext.getHistogramVisualization()
-
-        val canvas = Canvas(bitmap)
-        val paint = Paint().apply {
-            color = Color.MAGENTA
-            strokeWidth = 3f
-        }
-
-        histogramPoints.forEach { (x, y) ->
-            canvas.drawCircle(x, y, 5f, paint)
-        }
-
-        imageView.setImageBitmap(bitmap)
-        Log.d("MapCanva-Finish", "Histogram kirajzolva")
-    }
-
 
     private fun drawGraphOnImage(bitmap: Bitmap): Bitmap {
         val canvas = Canvas(bitmap)

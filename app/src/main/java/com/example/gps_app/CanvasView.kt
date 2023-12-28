@@ -32,8 +32,15 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         var vertices = mutableListOf<Vertex>()
         var edges = mutableListOf<Edge>()
 
-        override fun toString(): String {
-            return "Vertices: $vertices, Edges: $edges"
+        fun getNeighbors(vertex: Vertex): List<Vertex> {
+            val neighbors = mutableListOf<Vertex>()
+            for (edge in edges) {
+                when (vertex) {
+                    edge.start -> neighbors.add(edge.end)
+                    edge.end -> neighbors.add(edge.start)
+                }
+            }
+            return neighbors.distinct()
         }
     }
 

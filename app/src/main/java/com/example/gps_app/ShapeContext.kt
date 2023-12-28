@@ -15,21 +15,11 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
     private var logPolarCoordinatesTransformed: List<LogPolarCoordinate>
 
     init {
-        Log.d("ShapeContext-SC-init", "Initializing ShapeContext")
         logPolarCoordinatesOriginal = calculateLogPolarCoordinates(originalGraph)
         logPolarCoordinatesTransformed = calculateLogPolarCoordinates(transformedGraph)
-
-        /*
-        Log.d("ShapeContext-SC-init", "orifinalGraph: $originalGraph")
-        Log.d("ShapeContext-SC-init", "transformedGraph: $transformedGraph")
-        Log.d("ShapeContext-SC-init", "Original Graph Log-Polar Coordinates: $logPolarCoordinatesOriginal")
-        Log.d("ShapeContext-SC-init", "Transformed Graph Log-Polar Coordinates: $logPolarCoordinatesTransformed")
-
-         */
     }
 
     fun compareGraphs(): Double {
-        Log.d("ShapeContext-SC", "Comparing graphs")
         // 1. Histogramok készítése
         val histogramOriginal = createHistograms(logPolarCoordinatesOriginal)
         val histogramTransformed = createHistograms(logPolarCoordinatesTransformed)
@@ -51,13 +41,13 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
 
     private fun createHistograms(logPolarCoordinates: List<LogPolarCoordinate>): List<Histogram> {
         return logPolarCoordinates.mapIndexed { index, coordinate ->
-            val histogram = Histogram(25, 25)
+            val histogram = Histogram(18, 38)
             logPolarCoordinates.forEach { otherCoordinate ->
                 val binRadius = determineBinRadius(coordinate.radius, otherCoordinate.radius)
                 val binAngle = determineBinAngle(coordinate.angle, otherCoordinate.angle)
                 histogram.increment(binRadius, binAngle)
             }
-            Log.d("ShapeContext-SC", "Histogram for element $index: ${histogram.bins.contentDeepToString()}")
+            //Log.d("ShapeContext-SC", "Histogram for element $index: ${histogram.bins.contentDeepToString()}")
             histogram
         }
     }
@@ -95,8 +85,8 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
         return similarityScore
     }
 
-    private fun determineBinRadius(radius1: Double, radius2: Double, numBinsRadius: Int = 12): Int {
-        val maxRadius = 0.1 // vagy egy másik megfelelő érték
+    private fun determineBinRadius(radius1: Double, radius2: Double, numBinsRadius: Int = 18): Int {
+        val maxRadius = 0.1
         val minRadius = 0.0
 
         val distance = abs(radius1 - radius2)
@@ -105,7 +95,7 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
         return (normalizedDistance * numBinsRadius).toInt().coerceIn(0, numBinsRadius - 1)
     }
 
-    private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int = 26): Int {
+    private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int = 38): Int {
         val diffAngle = abs(angle1 - angle2)
         val normalizedAngle = diffAngle / (2 * Math.PI)
 
@@ -119,26 +109,8 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
         return LogPolarCoordinate(logRadius, angle)
     }
 
-    fun getHistogramVisualization(): List<Pair<Float, Float>> {
-        val logPolarCoordinates = calculateLogPolarCoordinates(originalGraph)
-        val histograms = createHistograms(logPolarCoordinates)
-
-        val visualizationPoints = mutableListOf<Pair<Float, Float>>()
-        histograms.forEach { histogram ->
-            histogram.bins.forEachIndexed { rowIndex, row ->
-                row.forEachIndexed { columnIndex, _ ->
-                    // Itt a rowIndex és columnIndex alapján számoljuk ki a vizualizációs pontokat
-                    val x = rowIndex.toFloat() * 20f // 20f lehet a bin szélessége
-                    val y = columnIndex.toFloat() * 20f // 20f lehet a bin magassága
-                    visualizationPoints.add(Pair(x, y))
-                }
-            }
-        }
-        return visualizationPoints
-    }
-
     fun getNumBins(): Pair<Int, Int> {
         // A binRadius és binAngle számának visszaadása
-        return Pair(12, 26) // például, itt állíthatod be a kívánt értékeket
+        return Pair(18, 38) // például, itt állíthatod be a kívánt értékeket
     }
 }
