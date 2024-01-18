@@ -145,7 +145,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 data.startsWith("U") -> {
                     if (segment.isNotEmpty()) {
                         // Alkalmazzuk a Douglas-Peucker algoritmust a szegmentumra
-                        val simplifiedSegment = douglasPeucker(segment, 12f) // 12 pixel tolerancia
+                        val simplifiedSegment = douglasPeucker(segment, 15f) // 15 pixel tolerancia
                         if (simplifiedSegment.size > 1) {
                             for (i in 1 until simplifiedSegment.size) {
                                 graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))

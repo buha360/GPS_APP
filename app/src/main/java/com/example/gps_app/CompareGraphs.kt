@@ -91,7 +91,7 @@ class CompareGraph {
         var bestMatchScore = Double.MAX_VALUE
 
         // Ha a rajzolt gráf éleinek száma >= 5, közvetlenül a képre helyezzük
-        if (transformedGraph.edges.size >= 5) {
+        if (transformedGraph.edges.size > 5) {
 
             // Megkeresi a legközelebbi pontokat a nagy gráfon
             val matches = findClosestPoints(largeGraph, transformedGraph)
@@ -124,7 +124,7 @@ class CompareGraph {
                                 )
 
                                 val currentMatches = findClosestPoints(largeGraph, transformed)
-                                val pathSegment = buildCompletePath(currentMatches, largeGraph)
+                                val pathSegment = buildCompletePath4(currentMatches, largeGraph)
 
                                 val shapeContext = ShapeContext(transformed, pathSegment)
                                 val similarityScore = shapeContext.compareGraphs()
@@ -309,6 +309,77 @@ class CompareGraph {
         }
 
         return removeUnwantedEdges(completeGraph)
+    }
+
+    private fun buildCompletePath4(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
+        val completeGraph = CanvasView.Graph()
+
+        // Végig iterálunk a párosításokon és összekötjük az illesztett pontokat a térképen
+        for (i in 0 until matches.size - 1) {
+            val start = matches[i].second // Az aktuális pont a nagy gráfon
+            val end = matches[i + 1].second // A következő pont a nagy gráfon
+
+            // Az A* algoritmus segítségével megtaláljuk a legjobb utat a két pont között
+            val pathSegment = findBestPathInLargeGraph4(largeGraph, start, end)
+
+            // Hozzáadjuk az útvonal pontjait a teljes gráfhoz csúcsként
+            pathSegment.forEach { vertex ->
+                completeGraph.vertices.add(vertex)
+            }
+
+            // Hozzáadjuk az útvonalat a teljes gráfhoz élként
+            for (j in 0 until pathSegment.size - 1) {
+                val pathStart = pathSegment[j]
+                val pathEnd = pathSegment[j + 1]
+                completeGraph.edges.add(CanvasView.Edge(pathStart, pathEnd))
+            }
+        }
+
+        return completeGraph
+    }
+
+    private fun findBestPathInLargeGraph4(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, start: CanvasView.Vertex, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
+        val heuristic = { _: CanvasView.Vertex -> 0.0 }
+        val openList = PriorityQueue<AStarNode>()
+        val closedSet = mutableSetOf<CanvasView.Vertex>()
+        val gValues = largeGraph.keys.associateWith { Double.POSITIVE_INFINITY }.toMutableMap()
+        gValues[start] = 0.0
+
+        val parentNodes = mutableMapOf<CanvasView.Vertex, CanvasView.Vertex?>()
+        openList.add(AStarNode(start, heuristic(start)))
+
+        while (openList.isNotEmpty()) {
+            val currentNode = openList.poll()
+
+            if (currentNode != null) {
+                if (currentNode.vertex == goal) {
+                    return constructPath(parentNodes, goal)
+                }
+
+                closedSet.add(currentNode.vertex)
+
+                largeGraph[currentNode.vertex]?.forEach { neighbor ->
+                    if (closedSet.contains(neighbor)) return@forEach
+
+                    val tentativeGValue = gValues[currentNode.vertex]!! + calculateDistance(
+                        currentNode.vertex,
+                        neighbor
+                    )
+                    if (tentativeGValue < gValues[neighbor]!!) {
+                        gValues[neighbor] = tentativeGValue
+                        parentNodes[neighbor] = currentNode.vertex
+
+                        // Az 'AStarNode' létrehozása a 'vertex' és az F érték alapján
+                        openList.add(AStarNode(start, heuristic(start)))
+
+                        // Egy másik 'AStarNode' létrehozása egy másik csúcs és F érték alapján
+                        openList.add(AStarNode(neighbor, tentativeGValue + heuristic(neighbor)))
+                    }
+                }
+            }
+        }
+
+        return emptyList() // Nem talált útvonal
     }
 
     private fun removeUnwantedEdges(graph: CanvasView.Graph): CanvasView.Graph {
