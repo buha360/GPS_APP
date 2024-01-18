@@ -126,7 +126,6 @@ class MainActivity : FragmentActivity(), MapListener {
 
             // az aktuális elforgatási szög
             DataHolder.mapRotation = mMap.mapOrientation
-            mMap.rotation
 
             saveMapAsImage()
             fetchRoadsFromOverpass()
