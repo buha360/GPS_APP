@@ -2,12 +2,9 @@ package com.example.gps_app
 
 import android.util.Log
 import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.exp
 import kotlin.math.pow
-import kotlin.math.sin
 
-class ShapeContext(private val originalGraph: CanvasView.Graph, private val transformedGraph: CanvasView.Graph) {
+class ShapeContext(originalGraph: CanvasView.Graph, transformedGraph: CanvasView.Graph) {
 
     data class LogPolarCoordinate(val radius: Double, val angle: Double)
 
@@ -111,6 +108,6 @@ class ShapeContext(private val originalGraph: CanvasView.Graph, private val tran
 
     fun getNumBins(): Pair<Int, Int> {
         // A binRadius és binAngle számának visszaadása
-        return Pair(18, 38) // például, itt állíthatod be a kívánt értékeket
+        return Pair(18, 38)
     }
 }

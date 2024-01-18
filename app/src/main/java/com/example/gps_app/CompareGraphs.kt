@@ -14,8 +14,7 @@ import kotlin.math.sqrt
 class CompareGraph {
 
     object DataHolder {
-        var closestMatches: MutableList<Pair<CanvasView.Vertex, CanvasView.Vertex>> =
-            mutableListOf()
+        var matchedEndPoints: MutableList<Pair<CanvasView.Vertex, CanvasView.Vertex>> = mutableListOf()
     }
 
     private class AStarNode(val vertex: CanvasView.Vertex, val fValue: Double) :
@@ -87,36 +86,22 @@ class CompareGraph {
         return translatedGraph
     }
 
-    suspend fun findBestRotationMatch(
-        largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>,
-        transformedGraph: CanvasView.Graph,
-        canvasWidth: Int,
-        canvasHeight: Int
-    ): CanvasView.Graph {
+    suspend fun findBestRotationMatch(largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph, canvasWidth: Int, canvasHeight: Int): CanvasView.Graph {
         var bestMatch: CanvasView.Graph? = null
         var bestMatchScore = Double.MAX_VALUE
 
-        // Ha a rajzolt gráf éleinek száma >= 5, közvetlenül a kép középpontjára helyezzük
+        // Ha a rajzolt gráf éleinek száma >= 5, közvetlenül a képre helyezzük
         if (transformedGraph.edges.size >= 5) {
-            val centroid = calculateCentroid(transformedGraph.vertices)
-            val imageCenter = CanvasView.Vertex(canvasWidth / 2.0, canvasHeight / 2.0)
-
-            // Eltolás a kép középpontjára
-            val centeredGraph = translateGraph(
-                transformedGraph,
-                imageCenter.x - centroid.x,
-                imageCenter.y - centroid.y
-            )
 
             // Megkeresi a legközelebbi pontokat a nagy gráfon
-            val matches = findClosestPoints(largeGraph, centeredGraph)
+            val matches = findClosestPoints(largeGraph, transformedGraph)
 
             // Összeköti a pontokat az A* algoritmus segítségével a nagy gráfon
             bestMatch = buildCompletePath(matches, largeGraph)
         } else {
             // Poisson-disk pontgenerálás és shape context alkalmazása, ha kevesebb mint 5 él van
             val scaleFactors = listOf(1.0)
-            val spiralPoints = generatePoissonDiscPoints(canvasWidth, canvasHeight, 45.0, 165)
+            val spiralPoints = generatePoissonDiscPoints(canvasWidth, canvasHeight)
             Log.d("spiralPoints", "Generált pontok száma: ${spiralPoints.size}")
 
             coroutineScope {
@@ -132,16 +117,16 @@ class CompareGraph {
                                     angle.toDouble(),
                                     calculateCentroid(scaledGraph.vertices)
                                 )
-                                val transformedGraph = translateGraph(
+                                val transformed = translateGraph(
                                     rotatedGraph,
                                     spiralPoint.x - calculateCentroid(rotatedGraph.vertices).x,
                                     spiralPoint.y - calculateCentroid(rotatedGraph.vertices).y
                                 )
 
-                                val currentMatches = findClosestPoints(largeGraph, transformedGraph)
+                                val currentMatches = findClosestPoints(largeGraph, transformed)
                                 val pathSegment = buildCompletePath(currentMatches, largeGraph)
 
-                                val shapeContext = ShapeContext(transformedGraph, pathSegment)
+                                val shapeContext = ShapeContext(transformed, pathSegment)
                                 val similarityScore = shapeContext.compareGraphs()
 
                                 if (similarityScore < bestMatchScore) {
@@ -176,11 +161,6 @@ class CompareGraph {
         // Túllógó élek visszavágása a finomított gráfról
         return trimExcessEdges(refinedGraph)
     }
-
-    /*
-        Meg kell oldani a két külön álló gráf kirajzolását
-        pl: SZIA, 4 külön gráf, de összeköti őket
-     */
 
     private fun dfsBasedTraversal(transformedGraph: CanvasView.Graph): CanvasView.Graph {
         val visited = mutableSetOf<CanvasView.Vertex>()
@@ -303,32 +283,116 @@ class CompareGraph {
 
     private fun buildCompletePath(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
         val completeGraph = CanvasView.Graph()
+        val currentPathSegment = mutableListOf<CanvasView.Vertex>()
 
-        // Végig iterálunk a párosításokon és összekötjük az illesztett pontokat a térképen
-        for (i in 0 until matches.size - 1) {
-            val start = matches[i].second // Az aktuális pont a nagy gráfon
-            val end = matches[i + 1].second // A következő pont a nagy gráfon
+        for (i in matches.indices) {
+            val start = matches[i].second
+            val isStartMatched = DataHolder.matchedEndPoints.any { it.second == start }
 
-            // Az A* algoritmus segítségével megtaláljuk a legjobb utat a két pont között
-            val pathSegment = findBestPathInLargeGraph(largeGraph, start, end)
-
-            // Hozzáadjuk az útvonal pontjait a teljes gráfhoz csúcsként
-            pathSegment.forEach { vertex ->
-                completeGraph.vertices.add(vertex)
+            if (isStartMatched && currentPathSegment.isNotEmpty()) {
+                // Zárja le az aktuális szegmentumot, ha új objektum kezdődik
+                addPathSegmentToGraph(currentPathSegment, completeGraph)
+                currentPathSegment.clear()
             }
+            currentPathSegment.add(start)
 
-            // Hozzáadjuk az útvonalat a teljes gráfhoz élként
-            for (j in 0 until pathSegment.size - 1) {
-                val pathStart = pathSegment[j]
-                val pathEnd = pathSegment[j + 1]
-                completeGraph.edges.add(CanvasView.Edge(pathStart, pathEnd))
+            if (i < matches.size - 1 && !isStartMatched) {
+                // Csak akkor folytatja az útvonalat, ha nem egy új objektum kezdete
+                val end = matches[i + 1].second
+                val pathSegment = findBestPathInLargeGraph(largeGraph, start, end)
+                currentPathSegment.addAll(pathSegment)
             }
         }
 
-        return completeGraph
+        if (currentPathSegment.isNotEmpty()) {
+            addPathSegmentToGraph(currentPathSegment, completeGraph)
+        }
+
+        return removeUnwantedEdges(completeGraph)
     }
 
-    private fun generatePoissonDiscPoints(canvasWidth: Int, canvasHeight: Int, minDist: Double, numberOfPoints: Int): List<CanvasView.Vertex> {
+    private fun removeUnwantedEdges(graph: CanvasView.Graph): CanvasView.Graph {
+        val edgesToRemove = mutableListOf<CanvasView.Edge>()
+
+        for (edge in graph.edges) {
+            // Ellenőrizzük, hogy az él kezdő- vagy végpontja szerepel-e az endPoints listában
+            if (CanvasView.DataHolder.endPoints.contains(edge.start) || CanvasView.DataHolder.endPoints.contains(edge.end)) {
+                edgesToRemove.add(edge)
+            }
+        }
+
+        graph.edges.removeAll(edgesToRemove)
+        return graph
+    }
+
+    private fun addPathSegmentToGraph(pathSegment: List<CanvasView.Vertex>, graph: CanvasView.Graph) {
+        pathSegment.forEach { vertex ->
+            graph.vertices.add(vertex)
+        }
+
+        for (j in 0 until pathSegment.size - 1) {
+            val pathStart = pathSegment[j]
+            val pathEnd = pathSegment[j + 1]
+            graph.edges.add(CanvasView.Edge(pathStart, pathEnd))
+        }
+    }
+
+    private fun findBestPathInLargeGraph(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, start: CanvasView.Vertex, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
+        // Ellenőrzés, hogy a start pont szerepel-e a matchedEndPoints listában
+        val isStartMatched = DataHolder.matchedEndPoints.any { it.second == start }
+
+        // Ha a start pont szerepel a matchedEndPoints listában, térjünk vissza üres listával
+        if (isStartMatched) {
+            return emptyList() // Ne csináljon semmit, mivel a start pont már össze van kötve
+        }
+
+        // Heurisztika: Euklideszi távolság a célcsúcshoz
+        val heuristic = { vertex: CanvasView.Vertex -> calculateDistance(vertex, goal) }
+        val openList = PriorityQueue<AStarNode>()
+        val closedSet = mutableSetOf<CanvasView.Vertex>()
+        val gValues = largeGraph.keys.associateWith { Double.POSITIVE_INFINITY }.toMutableMap()
+        gValues[start] = 0.0
+
+        val parentNodes = mutableMapOf<CanvasView.Vertex, CanvasView.Vertex?>()
+        openList.add(AStarNode(start, heuristic(start)))
+
+        while (openList.isNotEmpty()) {
+            val currentNode = openList.poll()
+
+            if (currentNode != null) {
+                if (currentNode.vertex == goal) {
+                    return constructPath(parentNodes, goal)
+                }
+
+                closedSet.add(currentNode.vertex)
+
+                largeGraph[currentNode.vertex]?.forEach { neighbor ->
+                    if (!closedSet.contains(neighbor)) {
+                        val tentativeGValue = gValues[currentNode.vertex]!! + calculateDistance(currentNode.vertex, neighbor)
+                        if (tentativeGValue < gValues[neighbor]!!) {
+                            parentNodes[neighbor] = currentNode.vertex
+                            gValues[neighbor] = tentativeGValue
+                            openList.add(AStarNode(neighbor, tentativeGValue + heuristic(neighbor)))
+                        }
+                    }
+                }
+            }
+        }
+
+        return emptyList() // Nem talált útvonal, ha a start pont nem volt matched
+    }
+
+    private fun constructPath(parentNodes: Map<CanvasView.Vertex, CanvasView.Vertex?>, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
+        val path = mutableListOf<CanvasView.Vertex>()
+        var current: CanvasView.Vertex? = goal
+        while (current != null) {
+            path.add(current)
+            current = parentNodes[current]
+        }
+        return path.reversed()
+    }
+
+    private fun generatePoissonDiscPoints(canvasWidth: Int, canvasHeight: Int, minDist: Double = 45.0, numberOfPoints: Int = 165): List<CanvasView.Vertex> {
         val samplePoints = mutableListOf<CanvasView.Vertex>()
         val activeList = mutableListOf<CanvasView.Vertex>()
 
@@ -379,11 +443,19 @@ class CompareGraph {
 
     private fun findClosestPoints(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph): MutableList<Pair<CanvasView.Vertex, CanvasView.Vertex>> {
         val matches = mutableListOf<Pair<CanvasView.Vertex, CanvasView.Vertex>>()
+
         transformedGraph.vertices.forEach { transformedVertex ->
-            val closest = largeGraph.keys.minByOrNull { calculateDistance(it, transformedVertex) }
-                ?: transformedVertex
+            val closest = largeGraph.keys.minByOrNull { calculateDistance(it, transformedVertex) } ?: transformedVertex
             matches.add(Pair(transformedVertex, closest))
         }
+
+        CanvasView.DataHolder.endPoints.forEach { endPoint ->
+            val closestMatch = matches.minByOrNull { calculateDistance(it.second, endPoint) }
+            closestMatch?.let {
+                DataHolder.matchedEndPoints.add(Pair(endPoint, it.second))
+            }
+        }
+
         return matches
     }
 
@@ -417,60 +489,6 @@ class CompareGraph {
         }
 
         return rotatedGraph
-    }
-
-    private fun findBestPathInLargeGraph(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, start: CanvasView.Vertex, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
-        val heuristic = { _: CanvasView.Vertex -> 0.0 }
-        val openList = PriorityQueue<AStarNode>()
-        val closedSet = mutableSetOf<CanvasView.Vertex>()
-        val gValues = largeGraph.keys.associateWith { Double.POSITIVE_INFINITY }.toMutableMap()
-        gValues[start] = 0.0
-
-        val parentNodes = mutableMapOf<CanvasView.Vertex, CanvasView.Vertex?>()
-        openList.add(AStarNode(start, heuristic(start)))
-
-        while (openList.isNotEmpty()) {
-            val currentNode = openList.poll()
-
-            if (currentNode != null) {
-                if (currentNode.vertex == goal) {
-                    return constructPath(parentNodes, goal)
-                }
-
-                closedSet.add(currentNode.vertex)
-
-                largeGraph[currentNode.vertex]?.forEach { neighbor ->
-                    if (closedSet.contains(neighbor)) return@forEach
-
-                    val tentativeGValue = gValues[currentNode.vertex]!! + calculateDistance(
-                        currentNode.vertex,
-                        neighbor
-                    )
-                    if (tentativeGValue < gValues[neighbor]!!) {
-                        gValues[neighbor] = tentativeGValue
-                        parentNodes[neighbor] = currentNode.vertex
-
-                        // Az 'AStarNode' létrehozása a 'vertex' és az F érték alapján
-                        openList.add(AStarNode(start, heuristic(start)))
-
-                        // Egy másik 'AStarNode' létrehozása egy másik csúcs és F érték alapján
-                        openList.add(AStarNode(neighbor, tentativeGValue + heuristic(neighbor)))
-                    }
-                }
-            }
-        }
-
-        return emptyList() // Nem talált útvonal
-    }
-
-    private fun constructPath(parentNodes: Map<CanvasView.Vertex, CanvasView.Vertex?>, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
-        val path = mutableListOf<CanvasView.Vertex>()
-        var current: CanvasView.Vertex? = goal
-        while (current != null) {
-            path.add(current)
-            current = parentNodes[current]
-        }
-        return path.reversed()
     }
 
     companion object {

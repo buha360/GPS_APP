@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.util.AttributeSet
+import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import kotlin.math.abs
@@ -42,6 +43,10 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             }
             return neighbors.distinct()
         }
+
+        override fun toString(): String {
+            return "Graph(vertices=$vertices, edges=$edges)"
+        }
     }
 
     private val path = Path()
@@ -55,6 +60,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
     object DataHolder {
         lateinit var graph: Graph
+        var endPoints = mutableListOf<Vertex>()
     }
 
     init {
@@ -82,8 +88,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         canvas.drawPath(path, paint)
     }
 
-    private val connectionRadius = 6f  // Az a sugár, amin belül keresünk kapcsolódó pontot
-
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         val x = event.x
@@ -106,13 +110,9 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 }
             }
             MotionEvent.ACTION_UP -> {
-                // Ellenőrizze, hogy az utolsó pont közel van-e egy korábban rajzolt ponthoz
-                val closePoint = findClosePoint(x, y)
-                if (closePoint != null) {
-                    path.lineTo(closePoint.x.toFloat(), closePoint.y.toFloat())
-                    pathData.add("L ${closePoint.x} ${closePoint.y}")
-                }
-                pathData.add("U")
+                pathData.add("U $x $y")
+                val currentVertex = Vertex(x.toDouble(), y.toDouble())
+                DataHolder.endPoints.add(currentVertex)
             }
             else -> return false
         }
@@ -121,58 +121,59 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return true
     }
 
-    private fun findClosePoint(x: Float, y: Float): Vertex? {
-        for (data in pathData) {
-            if (data.startsWith("M") || data.startsWith("L")) {
-                val parts = data.split(" ")
-                val px = parts[1].toFloat()
-                val py = parts[2].toFloat()
-                if (sqrt((x - px).pow(2) + (y - py).pow(2)) < connectionRadius) {
-                    return Vertex(px.toDouble(), py.toDouble())
-                }
-            }
-        }
-        return null
-    }
-
     fun clearCanvas() {
         pathData.clear()
-        path.reset()  // Törli a path-ot
+        path.reset() // Törli a path-ot
         drawCanvas?.drawColor(Color.BLACK) // Fekete hátterűvé teszi a canvas-t
+        DataHolder.graph = Graph() // Új, üres gráf inicializálása
+        DataHolder.endPoints.clear() // Végpontok törlése
         invalidate()
     }
 
     fun createGraphFromPathData() {
         val graph = Graph()
-
         val segment = mutableListOf<Vertex>()
 
         for (data in pathData) {
-            if (data == "U") {
-                if (segment.isNotEmpty()) {
-                    val simplifiedSegment = douglasPeucker(segment, 10f) // 10 pixel tolerancia
-                    for (i in 1 until simplifiedSegment.size) {
-                        graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
-                    }
-                    graph.vertices.addAll(simplifiedSegment)
+            when {
+                data.startsWith("M") || data.startsWith("L") -> {
+                    val parts = data.split(" ")
+                    val x = parts[1].toDouble()
+                    val y = parts[2].toDouble()
+                    segment.add(Vertex(x, y))
                 }
-                segment.clear()
-                continue
+                data.startsWith("U") -> {
+                    if (segment.isNotEmpty()) {
+                        // Alkalmazzuk a Douglas-Peucker algoritmust a szegmentumra
+                        val simplifiedSegment = douglasPeucker(segment, 12f) // 12 pixel tolerancia
+                        if (simplifiedSegment.size > 1) {
+                            for (i in 1 until simplifiedSegment.size) {
+                                graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
+                            }
+                            graph.vertices.addAll(simplifiedSegment)
+                        }
+                        segment.clear()
+                    }
+                    // Hozzáadjuk az "U" parancsban lévő pontot is
+                    val parts = data.split(" ")
+                    val x = parts[1].toDouble()
+                    val y = parts[2].toDouble()
+                    val endPoint = Vertex(x, y)
+                    if (!graph.vertices.contains(endPoint)) {
+                        graph.vertices.add(endPoint)
+                    }
+                }
             }
-
-            val parts = data.split(" ")
-            val x = parts[1].toDouble()
-            val y = parts[2].toDouble()
-            val currentVertex = Vertex(x, y)
-
-            segment.add(currentVertex)
         }
 
         DataHolder.graph = graph
     }
 
     private fun douglasPeucker(vertices: List<Vertex>, epsilon: Float): List<Vertex> {
-        if (vertices.size <= 2) return vertices
+        if (vertices.size <= 2) {
+            Log.d("DouglasPeucker", "Nincs szükség finomításra, pontok száma: ${vertices.size}")
+            return vertices
+        }
 
         val firstVertex = vertices.first()
         val lastVertex = vertices.last()
@@ -181,10 +182,16 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         var index = 0
 
         for (i in 1 until vertices.size - 1) {
-            val distance = pointLineDistance(vertices[i], firstVertex, lastVertex)
-            if (distance > maxDistance) {
-                index = i
-                maxDistance = distance.toFloat()
+            if (!DataHolder.endPoints.contains(vertices[i])) {
+                val distance = pointLineDistance(vertices[i], firstVertex, lastVertex)
+                Log.d("DouglasPeucker", "Pont: ${vertices[i]}, Távolság: $distance")
+
+                if (distance > maxDistance) {
+                    index = i
+                    maxDistance = distance.toFloat()
+                }
+            } else {
+                Log.d("DouglasPeucker", "EndPoint találat, pont kihagyva: ${vertices[i]}")
             }
         }
 
@@ -192,9 +199,27 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
             val leftRecursive = douglasPeucker(vertices.subList(0, index + 1), epsilon)
             val rightRecursive = douglasPeucker(vertices.subList(index, vertices.size), epsilon)
 
+            // Ellenőrizze, hogy az eredeti endPointok közül valamelyiket módosítottuk-e
+            updateEndPointsIfNeeded(vertices, leftRecursive + rightRecursive)
+
             leftRecursive.dropLast(1) + rightRecursive
         } else {
+            // Ellenőrizze, hogy az eredeti endPointok közül valamelyiket módosítottuk-e
+            updateEndPointsIfNeeded(vertices, listOf(firstVertex, lastVertex))
             listOf(firstVertex, lastVertex)
+        }
+    }
+
+    private fun updateEndPointsIfNeeded(originalVertices: List<Vertex>, simplifiedVertices: List<Vertex>) {
+        originalVertices.forEach { originalVertex ->
+            if (DataHolder.endPoints.contains(originalVertex)) {
+                val index = simplifiedVertices.indexOfFirst { it == originalVertex }
+                if (index != -1) {
+                    val newVertex = simplifiedVertices[index]
+                    val endPointIndex = DataHolder.endPoints.indexOf(originalVertex)
+                    DataHolder.endPoints[endPointIndex] = newVertex
+                }
+            }
         }
     }
 

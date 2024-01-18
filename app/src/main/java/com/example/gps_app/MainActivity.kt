@@ -3,6 +3,7 @@ package com.example.gps_app
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Point
 import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
@@ -29,6 +30,8 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
+import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
+import kotlin.properties.Delegates
 
 class MainActivity : FragmentActivity(), MapListener {
 
@@ -64,6 +67,7 @@ class MainActivity : FragmentActivity(), MapListener {
         val lon: Double
     )
 
+    private lateinit var mRotationGestureOverlay: RotationGestureOverlay
     private lateinit var mMap: MapView
     private lateinit var controller: IMapController
     private lateinit var mMyLocationOverlay: MyLocationNewOverlay
@@ -72,6 +76,7 @@ class MainActivity : FragmentActivity(), MapListener {
         var mapZoomLevel: Double? = null
         var mapLatitude: Double? = null
         var mapLongitude: Double? = null
+        var mapRotation by Delegates.notNull<Float>()
         var largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>? = null
         var areaCentroid: CanvasView.Vertex? = null
     }
@@ -103,14 +108,25 @@ class MainActivity : FragmentActivity(), MapListener {
             }
         }
 
+        // Létrehozás és beállítás
+        mRotationGestureOverlay = RotationGestureOverlay(mMap)
+        mRotationGestureOverlay.isEnabled = true
+
+        // Hozzáadás a MapView-hoz
+        mMap.overlays.add(mRotationGestureOverlay)
+
         controller.setZoom(6.0)
         mMap.overlays.add(mMyLocationOverlay)
         mMap.addMapListener(this)
 
         val buttonNext: Button = findViewById(R.id.button_next)
         buttonNext.setOnClickListener {
-            val areaCenteroid = calculateVisibleAreaCentroid()
-            DataHolder.areaCentroid = areaCenteroid
+            val areaCentroid = calculateVisibleAreaCentroid()
+            DataHolder.areaCentroid = areaCentroid
+
+            // az aktuális elforgatási szög
+            DataHolder.mapRotation = mMap.mapOrientation
+            mMap.rotation
 
             saveMapAsImage()
             fetchRoadsFromOverpass()
@@ -119,7 +135,7 @@ class MainActivity : FragmentActivity(), MapListener {
             DataHolder.mapLatitude = mMap.mapCenter.latitude
             DataHolder.mapLongitude = mMap.mapCenter.longitude
 
-            Log.d("MapCanva-MainActivity-buildGraph(): - graph: ", DataHolder.largeGraph.toString())
+            Log.d("MapCanva-MainActivity", "Graph: ${DataHolder.largeGraph}")
 
             val intent = Intent(this, DrawingActivity::class.java)
             startActivity(intent)
@@ -170,6 +186,21 @@ class MainActivity : FragmentActivity(), MapListener {
         }.start()
     }
 
+    private fun parseOverpassResponse(response: String): Pair<List<Way>, Map<Long, Node>> {
+        val gson = Gson()
+        val jsonResponse = gson.fromJson(response, JsonObject::class.java)
+
+        val ways = jsonResponse.getAsJsonArray("elements").filter {
+            it.asJsonObject["type"].asString == "way"
+        }.map { gson.fromJson(it, Way::class.java) }
+
+        val nodesMap = jsonResponse.getAsJsonArray("elements").filter {
+            it.asJsonObject["type"].asString == "node"
+        }.map { gson.fromJson(it, Node::class.java) }.associateBy { it.id }
+
+        return Pair(ways, nodesMap)
+    }
+
     private fun buildGraph(ways: List<Way>, nodes: Map<Long, Node>) {
         val graph = Graph()
         ways.forEach { way ->
@@ -184,11 +215,50 @@ class MainActivity : FragmentActivity(), MapListener {
             }
         }
 
-        DataHolder.largeGraph = convertToScreenCoordinates(graph) // Convert to screen coordinates if needed
+        var screenGraph = convertToScreenCoordinates(graph)
+
+        Log.d("rotationAngle","${DataHolder.mapRotation}")
+        screenGraph = rotateGraphCoordinates(screenGraph, DataHolder.mapRotation, mMap)
+
+        DataHolder.largeGraph = screenGraph
+    }
+
+    private fun rotateGraphCoordinates(graph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, rotationAngle: Float, mapView: MapView): MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>> {
+        val rotatedGraph = mutableMapOf<CanvasView.Vertex, MutableList<CanvasView.Vertex>>()
+        val mapCenter = mapView.mapCenter
+        val centerPoint = mapView.projection.toPixels(org.osmdroid.util.GeoPoint(mapCenter.latitude, mapCenter.longitude), null)
+
+        graph.forEach { (vertex, neighbors) ->
+            val rotatedVertex = rotatePoint(vertex, centerPoint, rotationAngle)
+            val rotatedNeighbors = neighbors.map { rotatePoint(it, centerPoint, rotationAngle) }.toMutableList()
+            rotatedGraph[rotatedVertex] = rotatedNeighbors
+        }
+
+        return rotatedGraph
+    }
+
+    private fun rotatePoint(point: CanvasView.Vertex, pivot: Point, angle: Float): CanvasView.Vertex {
+        val rad = Math.toRadians(angle.toDouble())
+        val sin = sin(rad)
+        val cos = cos(rad)
+
+        // Eltoljuk a pontot a forgatási középpontig
+        var x = point.x - pivot.x
+        var y = point.y - pivot.y
+
+        // Elforgatjuk a pontot
+        val newX = x * cos - y * sin
+        val newY = x * sin + y * cos
+
+        // Visszatoljuk a forgatott pontot az eredeti helyére
+        x = newX + pivot.x
+        y = newY + pivot.y
+
+        return CanvasView.Vertex(x, y)
     }
 
     private fun subdivideWay(nodes: List<Vertex>): List<Vertex> {
-        val segmentLength = 8.0 // 8 méteres szegmensekre osztás
+        val segmentLength = 10.0 // 10 méteres szegmensekre osztás
         val subdividedWay = mutableListOf<Vertex>()
         for (i in 0 until nodes.size - 1) {
             val start = nodes[i]
@@ -239,21 +309,6 @@ class MainActivity : FragmentActivity(), MapListener {
     private fun convertGeoPointToScreenCoordinates(geoPoint: GeoPoint): CanvasView.Vertex {
         val point = mMap.projection.toPixels(org.osmdroid.util.GeoPoint(geoPoint.lat, geoPoint.lon), null)
         return CanvasView.Vertex(point.x.toDouble(), point.y.toDouble())
-    }
-
-    private fun parseOverpassResponse(response: String): Pair<List<Way>, Map<Long, Node>> {
-        val gson = Gson()
-        val jsonResponse = gson.fromJson(response, JsonObject::class.java)
-
-        val ways = jsonResponse.getAsJsonArray("elements").filter {
-            it.asJsonObject["type"].asString == "way"
-        }.map { gson.fromJson(it, Way::class.java) }
-
-        val nodesMap = jsonResponse.getAsJsonArray("elements").filter {
-            it.asJsonObject["type"].asString == "node"
-        }.map { gson.fromJson(it, Node::class.java) }.associateBy { it.id }
-
-        return Pair(ways, nodesMap)
     }
 
     override fun onScroll(event: ScrollEvent?): Boolean {

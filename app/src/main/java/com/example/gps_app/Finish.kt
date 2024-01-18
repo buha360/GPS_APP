@@ -68,6 +68,11 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        bitmap.recycle() // Bitmap felszabadítása
+    }
+
     private fun generatePoissonDiskPoints(canvasWidth: Int, canvasHeight: Int, minDist: Double, numberOfPoints: Int): List<CanvasView.Vertex> {
         val samplePoints = mutableListOf<CanvasView.Vertex>()
         val activeList = mutableListOf<CanvasView.Vertex>()
@@ -133,7 +138,6 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
         Log.d("MapCanva-Finish-drawPointsOnImage", "Pontok kirajzolva")
     }
 
-
     @SuppressLint("SetTextI18n")
     override fun onProgressUpdate(progress: Int) {
         runOnUiThread {
@@ -143,35 +147,30 @@ class Finish : AppCompatActivity(), CompareGraph.ProgressListener{
     }
 
     private fun drawSolutionOnImage() {
-        Log.d("MapCanva-Finish-drawSolutionOnImage()", "Kirajzolás folyamatban")
+        Log.d("MapCanva-Finish", "Kirajzolás folyamatban")
         val canvas = Canvas(bitmap)
-        val greenPaint = Paint().apply {
+        val paint = Paint().apply {
             color = Color.GREEN
             strokeWidth = 5f
         }
 
-        val yellowPaint = Paint().apply {
-            color = Color.YELLOW
-            strokeWidth = 3f
-            style = Paint.Style.STROKE
-        }
+        // Tegyük fel, hogy a nagy gráfot itt tároljuk:
+        val largeGraph = MainActivity.DataHolder.largeGraph
 
-        // Kirajzoljuk a megoldást zöld vonallal
         solution.edges.forEach { edge ->
-            canvas.drawLine(
-                edge.start.x.toFloat(), edge.start.y.toFloat(),
-                edge.end.x.toFloat(), edge.end.y.toFloat(),
-                greenPaint
-            )
+            // Ellenőrizzük, hogy az él létezik-e a nagy gráfban
+            if (largeGraph?.get(edge.start)?.contains(edge.end) == true) {
+                canvas.drawLine(
+                    edge.start.x.toFloat(), edge.start.y.toFloat(),
+                    edge.end.x.toFloat(), edge.end.y.toFloat(),
+                    paint
+                )
+                Log.d("Teljes-graph-f", "Él rajzolva: ${edge.start} -> ${edge.end}")
+            }
         }
 
-        // Kirajzoljuk a legközelebbi pontokat sárga körökkel
-        CompareGraph.DataHolder.closestMatches.forEach { (_, matchedVertex) ->
-            canvas.drawCircle(matchedVertex.x.toFloat(), matchedVertex.y.toFloat(), 10f, yellowPaint)
-        }
-
-        val imageView: ImageView = findViewById(R.id.imageView)
         imageView.setImageBitmap(bitmap)
+        imageView.invalidate()
         Log.d("MapCanva-Finish-drawSolutionOnImage()", "Kirajzolás befejezve")
     }
 
