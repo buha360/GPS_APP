@@ -52,6 +52,7 @@ android {
 }
 
 dependencies {
+    implementation("com.github.skydoves:colorpicker-compose:1.0.7")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.github.jillesvangurp.overpass-kotlin-client:overpass-kotlin-client:v0.2")
     implementation("org.osmdroid:osmdroid-android:6.1.18")

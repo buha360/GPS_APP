@@ -1,14 +1,7 @@
 package com.example.gps_app
 
-import kotlin.math.min
-import android.util.Log
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
 import java.util.PriorityQueue
 import kotlin.math.acos
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 class CompareGraph {
@@ -30,127 +23,14 @@ class CompareGraph {
         fun onProgressUpdate(progress: Int)
     }
 
-    private fun scaleGraph(graph: CanvasView.Graph, scaleFactor: Double): CanvasView.Graph {
-        val scaledGraph = CanvasView.Graph()
-        val scaledVertices = mutableMapOf<CanvasView.Vertex, CanvasView.Vertex>()
+    fun findBestRotationMatch(largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph): CanvasView.Graph {
+        val bestMatch: CanvasView.Graph?
 
-        // Skálázás a csúcsokon
-        for (vertex in graph.vertices) {
-            val scaledX = vertex.x * scaleFactor
-            val scaledY = vertex.y * scaleFactor
-            val scaledVertex = CanvasView.Vertex(scaledX, scaledY)
-            scaledVertices[vertex] = scaledVertex
-            scaledGraph.vertices.add(scaledVertex)
-        }
+        // Megkeresi a legközelebbi pontokat a nagy gráfon
+        val matches = findClosestPoints(largeGraph, transformedGraph)
 
-        // Skálázás az éleken
-        for (edge in graph.edges) {
-            val scaledStart = scaledVertices[edge.start]
-            val scaledEnd = scaledVertices[edge.end]
-            if (scaledStart != null && scaledEnd != null) {
-                scaledGraph.edges.add(CanvasView.Edge(scaledStart, scaledEnd))
-            }
-        }
-
-        return scaledGraph
-    }
-
-    private fun calculateCentroid(vertices: List<CanvasView.Vertex>): CanvasView.Vertex {
-        val sumX = vertices.sumOf { it.x }
-        val sumY = vertices.sumOf { it.y }
-        return CanvasView.Vertex(sumX / vertices.size, sumY / vertices.size)
-    }
-
-    private fun translateGraph(
-        graph: CanvasView.Graph,
-        translationX: Double,
-        translationY: Double
-    ): CanvasView.Graph {
-        val translatedGraph = CanvasView.Graph()
-        val translatedVertices = mutableMapOf<CanvasView.Vertex, CanvasView.Vertex>()
-
-        for (vertex in graph.vertices) {
-            val translatedX = vertex.x + translationX
-            val translatedY = vertex.y + translationY
-            val translatedVertex = CanvasView.Vertex(translatedX, translatedY)
-            translatedVertices[vertex] = translatedVertex
-            translatedGraph.vertices.add(translatedVertex)
-        }
-
-        for (edge in graph.edges) {
-            val translatedStart = translatedVertices[edge.start]!!
-            val translatedEnd = translatedVertices[edge.end]!!
-            translatedGraph.edges.add(CanvasView.Edge(translatedStart, translatedEnd))
-        }
-
-        return translatedGraph
-    }
-
-    suspend fun findBestRotationMatch(largeGraph: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph, canvasWidth: Int, canvasHeight: Int): CanvasView.Graph {
-        var bestMatch: CanvasView.Graph? = null
-        var bestMatchScore = Double.MAX_VALUE
-
-        // Ha a rajzolt gráf éleinek száma >= 5, közvetlenül a képre helyezzük
-        if (transformedGraph.edges.size > 5) {
-
-            // Megkeresi a legközelebbi pontokat a nagy gráfon
-            val matches = findClosestPoints(largeGraph, transformedGraph)
-
-            // Összeköti a pontokat az A* algoritmus segítségével a nagy gráfon
-            bestMatch = buildCompletePath(matches, largeGraph)
-        } else {
-            // Poisson-disk pontgenerálás és shape context alkalmazása, ha kevesebb mint 5 él van
-            val scaleFactors = listOf(1.0)
-            val spiralPoints = generatePoissonDiscPoints(canvasWidth, canvasHeight)
-            Log.d("spiralPoints", "Generált pontok száma: ${spiralPoints.size}")
-
-            coroutineScope {
-                val totalIterations = spiralPoints.size * 72
-                var currentIteration = 0
-                val jobs = spiralPoints.flatMap { spiralPoint ->
-                    scaleFactors.flatMap { scaleFactor ->
-                        (0 until 360 step 5).map { angle ->
-                            async(Dispatchers.Default) {
-                                val scaledGraph = scaleGraph(transformedGraph, scaleFactor)
-                                val rotatedGraph = rotateGraph(
-                                    scaledGraph,
-                                    angle.toDouble(),
-                                    calculateCentroid(scaledGraph.vertices)
-                                )
-                                val transformed = translateGraph(
-                                    rotatedGraph,
-                                    spiralPoint.x - calculateCentroid(rotatedGraph.vertices).x,
-                                    spiralPoint.y - calculateCentroid(rotatedGraph.vertices).y
-                                )
-
-                                val currentMatches = findClosestPoints(largeGraph, transformed)
-                                val pathSegment = buildCompletePath4(currentMatches, largeGraph)
-
-                                val shapeContext = ShapeContext(transformed, pathSegment)
-                                val similarityScore = shapeContext.compareGraphs()
-
-                                if (similarityScore < bestMatchScore) {
-                                    bestMatchScore = similarityScore
-                                    bestMatch = pathSegment
-                                    Log.d(
-                                        "ShapeContext-CG",
-                                        "BestMatchScore: $bestMatchScore BestMatch: $bestMatch"
-                                    )
-                                }
-
-                                currentIteration++
-                                val progress = (currentIteration.toDouble() / totalIterations * 100).toInt()
-                                progressListener?.onProgressUpdate(progress)
-                            }
-                        }
-                    }
-                }
-
-                for (job in jobs) {
-                    job.await()
-                }
-            }
-        }
+        // Összeköti a pontokat az A* algoritmus segítségével a nagy gráfon
+        bestMatch = buildCompletePath(matches, largeGraph)
 
         // A bestMatch értéke vagy a legjobb megtalált egyezés vagy a transzformált gráf
         val finalBestMatch = bestMatch ?: transformedGraph
@@ -311,77 +191,6 @@ class CompareGraph {
         return removeUnwantedEdges(completeGraph)
     }
 
-    private fun buildCompletePath4(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
-        val completeGraph = CanvasView.Graph()
-
-        // Végig iterálunk a párosításokon és összekötjük az illesztett pontokat a térképen
-        for (i in 0 until matches.size - 1) {
-            val start = matches[i].second // Az aktuális pont a nagy gráfon
-            val end = matches[i + 1].second // A következő pont a nagy gráfon
-
-            // Az A* algoritmus segítségével megtaláljuk a legjobb utat a két pont között
-            val pathSegment = findBestPathInLargeGraph4(largeGraph, start, end)
-
-            // Hozzáadjuk az útvonal pontjait a teljes gráfhoz csúcsként
-            pathSegment.forEach { vertex ->
-                completeGraph.vertices.add(vertex)
-            }
-
-            // Hozzáadjuk az útvonalat a teljes gráfhoz élként
-            for (j in 0 until pathSegment.size - 1) {
-                val pathStart = pathSegment[j]
-                val pathEnd = pathSegment[j + 1]
-                completeGraph.edges.add(CanvasView.Edge(pathStart, pathEnd))
-            }
-        }
-
-        return completeGraph
-    }
-
-    private fun findBestPathInLargeGraph4(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, start: CanvasView.Vertex, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
-        val heuristic = { _: CanvasView.Vertex -> 0.0 }
-        val openList = PriorityQueue<AStarNode>()
-        val closedSet = mutableSetOf<CanvasView.Vertex>()
-        val gValues = largeGraph.keys.associateWith { Double.POSITIVE_INFINITY }.toMutableMap()
-        gValues[start] = 0.0
-
-        val parentNodes = mutableMapOf<CanvasView.Vertex, CanvasView.Vertex?>()
-        openList.add(AStarNode(start, heuristic(start)))
-
-        while (openList.isNotEmpty()) {
-            val currentNode = openList.poll()
-
-            if (currentNode != null) {
-                if (currentNode.vertex == goal) {
-                    return constructPath(parentNodes, goal)
-                }
-
-                closedSet.add(currentNode.vertex)
-
-                largeGraph[currentNode.vertex]?.forEach { neighbor ->
-                    if (closedSet.contains(neighbor)) return@forEach
-
-                    val tentativeGValue = gValues[currentNode.vertex]!! + calculateDistance(
-                        currentNode.vertex,
-                        neighbor
-                    )
-                    if (tentativeGValue < gValues[neighbor]!!) {
-                        gValues[neighbor] = tentativeGValue
-                        parentNodes[neighbor] = currentNode.vertex
-
-                        // Az 'AStarNode' létrehozása a 'vertex' és az F érték alapján
-                        openList.add(AStarNode(start, heuristic(start)))
-
-                        // Egy másik 'AStarNode' létrehozása egy másik csúcs és F érték alapján
-                        openList.add(AStarNode(neighbor, tentativeGValue + heuristic(neighbor)))
-                    }
-                }
-            }
-        }
-
-        return emptyList() // Nem talált útvonal
-    }
-
     private fun removeUnwantedEdges(graph: CanvasView.Graph): CanvasView.Graph {
         val edgesToRemove = mutableListOf<CanvasView.Edge>()
 
@@ -463,55 +272,6 @@ class CompareGraph {
         return path.reversed()
     }
 
-    private fun generatePoissonDiscPoints(canvasWidth: Int, canvasHeight: Int, minDist: Double = 45.0, numberOfPoints: Int = 165): List<CanvasView.Vertex> {
-        val samplePoints = mutableListOf<CanvasView.Vertex>()
-        val activeList = mutableListOf<CanvasView.Vertex>()
-
-        // Kezdőpont hozzáadása
-        val initialPoint = CanvasView.Vertex(canvasWidth / 2.0, canvasHeight / 2.0)
-        samplePoints.add(initialPoint)
-        activeList.add(initialPoint)
-
-        val centerX = canvasWidth / 2.0
-        val centerY = canvasHeight / 2.0
-        val maxRadius = min(canvasWidth, canvasHeight) / 2.8
-
-        while (activeList.isNotEmpty() && samplePoints.size < numberOfPoints) {
-            val pointIndex = (Math.random() * activeList.size).toInt()
-            val point = activeList[pointIndex]
-            var found = false
-
-            for (i in 0 until numberOfPoints) {
-                val angle = Math.random() * 2 * Math.PI
-                val radius = minDist * (Math.random() + 1)
-                val newX = point.x + radius * cos(angle)
-                val newY = point.y + radius * sin(angle)
-                val newPoint = CanvasView.Vertex(newX, newY)
-
-                // Ellenőrizzük, hogy a pont a körön belül van-e és elegendő távolságra van-e a többi ponttól
-                val isInsideCircle = (newX - centerX) * (newX - centerX) + (newY - centerY) * (newY - centerY) <= maxRadius * maxRadius
-                val isFarEnough = samplePoints.none { existingPoint ->
-                    val dx = existingPoint.x - newX
-                    val dy = existingPoint.y - newY
-                    sqrt(dx * dx + dy * dy) < minDist
-                }
-
-                if (isInsideCircle && isFarEnough) {
-                    activeList.add(newPoint)
-                    samplePoints.add(newPoint)
-                    found = true
-                    break
-                }
-            }
-
-            if (!found) {
-                activeList.removeAt(pointIndex)
-            }
-        }
-
-        return samplePoints
-    }
-
     private fun findClosestPoints(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph): MutableList<Pair<CanvasView.Vertex, CanvasView.Vertex>> {
         val matches = mutableListOf<Pair<CanvasView.Vertex, CanvasView.Vertex>>()
 
@@ -534,32 +294,6 @@ class CompareGraph {
         val dx = point2.x - point1.x
         val dy = point2.y - point1.y
         return sqrt(dx * dx + dy * dy)
-    }
-
-    private fun rotateGraph(graph: CanvasView.Graph, angleDegrees: Double, centroid: CanvasView.Vertex): CanvasView.Graph {
-        val rotatedGraph = CanvasView.Graph()
-        val rotatedVertices = mutableMapOf<CanvasView.Vertex, CanvasView.Vertex>()
-        val angleRadians = Math.toRadians(angleDegrees)
-
-        for (vertex in graph.vertices) {
-            val shiftedX = vertex.x - centroid.x
-            val shiftedY = vertex.y - centroid.y
-
-            val rotatedX = shiftedX * cos(angleRadians) - shiftedY * sin(angleRadians)
-            val rotatedY = shiftedX * sin(angleRadians) + shiftedY * cos(angleRadians)
-
-            val rotatedVertex = CanvasView.Vertex(rotatedX + centroid.x, rotatedY + centroid.y)
-            rotatedVertices[vertex] = rotatedVertex
-            rotatedGraph.vertices.add(rotatedVertex)
-        }
-
-        for (edge in graph.edges) {
-            val rotatedStart = rotatedVertices[edge.start]!!
-            val rotatedEnd = rotatedVertices[edge.end]!!
-            rotatedGraph.edges.add(CanvasView.Edge(rotatedStart, rotatedEnd))
-        }
-
-        return rotatedGraph
     }
 
     companion object {

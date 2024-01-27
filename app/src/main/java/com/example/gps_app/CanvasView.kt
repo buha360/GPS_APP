@@ -2,20 +2,16 @@ package com.example.gps_app
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
 import android.util.AttributeSet
 import android.util.Log
 import android.view.MotionEvent
-import android.view.View
+import com.example.gps_app.abstract_classes.AbstractCanvasView
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.sqrt
 
-class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
+class CanvasView(context: Context, attrs: AttributeSet) : AbstractCanvasView(context, attrs) {
 
     data class Vertex(val x: Double, val y: Double) {
         override fun toString(): String {
@@ -49,43 +45,24 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         }
     }
 
-    private val path = Path()
-    private val paint = Paint()
-    private var lastX: Float = 0f
-    private var lastY: Float = 0f
-    private var canvasBitmap: Bitmap? = null
-    private var drawCanvas: Canvas? = null
-    private val brushSize = 7f
-    private val pathData = ArrayList<String>()
+    interface OnDrawListener {
+        fun onDrawStarted()
+    }
+
+    var onDrawListener: OnDrawListener? = null
 
     object DataHolder {
         lateinit var graph: Graph
         var endPoints = mutableListOf<Vertex>()
     }
 
-    init {
-        setupDrawing()
-    }
-
-    private fun setupDrawing() {
-        paint.color = Color.WHITE // Fehér ecsetszín
-        paint.isAntiAlias = true
-        paint.strokeWidth = brushSize
-        paint.style = Paint.Style.STROKE
-        paint.strokeJoin = Paint.Join.ROUND
-        paint.strokeCap = Paint.Cap.ROUND
-    }
-
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        canvasBitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
-        drawCanvas = Canvas(canvasBitmap!!)
-        drawCanvas?.drawColor(Color.BLACK) // Fekete háttér beállítása
-    }
-
-    override fun onDraw(canvas: Canvas) {
-        canvas.drawBitmap(canvasBitmap!!, 0f, 0f, paint)
-        canvas.drawPath(path, paint)
+    override fun clearCanvas() {
+        pathData.clear()
+        path.reset()
+        drawCanvas?.drawColor(Color.parseColor("#31343b"))
+        DataHolder.graph = Graph()
+        DataHolder.endPoints.clear()
+        invalidate()
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -95,6 +72,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
 
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
+                onDrawListener?.onDrawStarted()
                 path.moveTo(x, y)
                 lastX = x
                 lastY = y
@@ -121,16 +99,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
         return true
     }
 
-    fun clearCanvas() {
-        pathData.clear()
-        path.reset() // Törli a path-ot
-        drawCanvas?.drawColor(Color.BLACK) // Fekete hátterűvé teszi a canvas-t
-        DataHolder.graph = Graph() // Új, üres gráf inicializálása
-        DataHolder.endPoints.clear() // Végpontok törlése
-        invalidate()
-    }
-
-    fun createGraphFromPathData() {
+    override fun createGraphFromPathData() {
         val graph = Graph()
         val segment = mutableListOf<Vertex>()
 
@@ -144,8 +113,7 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                 }
                 data.startsWith("U") -> {
                     if (segment.isNotEmpty()) {
-                        // Alkalmazzuk a Douglas-Peucker algoritmust a szegmentumra
-                        val simplifiedSegment = douglasPeucker(segment, 15f) // 15 pixel tolerancia
+                        val simplifiedSegment = douglasPeucker(segment, 15f)
                         if (simplifiedSegment.size > 1) {
                             for (i in 1 until simplifiedSegment.size) {
                                 graph.edges.add(Edge(simplifiedSegment[i - 1], simplifiedSegment[i]))
@@ -154,7 +122,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : View(context, attrs) {
                         }
                         segment.clear()
                     }
-                    // Hozzáadjuk az "U" parancsban lévő pontot is
                     val parts = data.split(" ")
                     val x = parts[1].toDouble()
                     val y = parts[2].toDouble()

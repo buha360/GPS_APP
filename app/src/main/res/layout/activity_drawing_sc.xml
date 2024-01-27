@@ -3,82 +3,83 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="#212327"
+    tools:context=".DrawingActivity">
 
     <com.google.android.material.bottomappbar.BottomAppBar
         android:id="@+id/bottomAppBar3"
         android:layout_width="match_parent"
         android:layout_height="35dp"
-        app:backgroundTint="#212327"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:backgroundTint="#212327"/>
 
-    <ImageView
-        android:id="@+id/imageView"
+    <com.example.gps_app.CanvasViewSC
+        android:id="@+id/canvasViewSC"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:contentDescription="@string/result"
-        app:layout_constraintBottom_toTopOf="@id/bottomAppBar2"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bottomAppBar3"
-        tools:srcCompat="@tools:sample/avatars" />
+        android:background="#31343b"
+        app:layout_constraintTop_toBottomOf="@+id/bottomAppBar3"
+        app:layout_constraintBottom_toTopOf="@+id/bottomAppBar2" />
 
     <com.google.android.material.bottomappbar.BottomAppBar
         android:id="@+id/bottomAppBar2"
         android:layout_width="match_parent"
         android:layout_height="90dp"
         app:backgroundTint="#212327"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toBottomOf="parent"/>
 
     <Button
-        android:id="@+id/button_restart"
+        app:backgroundTint="@null"
+        android:id="@+id/saveButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="18dp"
+        android:layout_marginBottom="24dp"
         android:background="@drawable/custom_button_green"
-        android:text="@string/restart"
-        android:textColor="#00ff7b"
-        app:backgroundTint="@null"
+        android:text="@string/save"
+        android:textColor="#FF0000"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.991" />
+        app:layout_constraintEnd_toStartOf="@+id/buttonBack"
+        app:layout_constraintStart_toEndOf="@+id/clearButton"
+        app:layout_constraintVertical_bias="0.357" />
 
     <Button
-        android:id="@id/button_color"
+        app:backgroundTint="@null"
+        android:id="@+id/buttonBack"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="18dp"
+        android:layout_marginBottom="24dp"
         android:background="@drawable/custom_button_green"
-        android:text="@string/color"
+        android:text="@string/back"
         android:textColor="#00ff7b"
-        app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.991" />
-
-    <!-- Hozzáadás: Horizontal Chain beállítása -->
+        app:layout_constraintStart_toEndOf="@+id/saveButton"
+        app:layout_constraintVertical_bias="0.357" />
 
     <Button
-        android:id="@+id/button_change"
+        app:backgroundTint="@null"
+        android:id="@+id/clearButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_margin="18dp"
+        android:layout_marginBottom="24dp"
         android:background="@drawable/custom_button_green"
-        android:text="@string/change"
-        android:textColor="#00ff7b"
-        app:backgroundTint="@null"
-        app:layout_constraintEnd_toStartOf="@+id/button_color"
-        app:layout_constraintHorizontal_bias="0.463"
-        app:layout_constraintStart_toEndOf="@+id/button_restart"
-        app:layout_constraintTop_toBottomOf="@+id/imageView" />
+        android:text="@string/clear"
+        android:textColor="#FF0000"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/saveButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintVertical_bias="0.357" />
 
+    <!-- Hozzáadás: Horizontal Chain beállítása -->
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/barrier"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="start"
-        app:constraint_referenced_ids="button_restart, button_change, button_color" />
+        app:constraint_referenced_ids="clearButton,saveButton,buttonBack" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -9,28 +9,55 @@
         android:id="@+id/bottomAppBar3"
         android:layout_width="match_parent"
         android:layout_height="35dp"
-        app:backgroundTint="#212327"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:backgroundTint="#212327"/>
 
     <ImageView
         android:id="@+id/imageView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:contentDescription="@string/result"
+        app:layout_constraintTop_toBottomOf="@id/bottomAppBar3"
         app:layout_constraintBottom_toTopOf="@id/bottomAppBar2"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/bottomAppBar3"
-        tools:srcCompat="@tools:sample/avatars" />
+        tools:srcCompat="@tools:sample/avatars"
+        android:contentDescription="@string/result" />
 
     <com.google.android.material.bottomappbar.BottomAppBar
         android:id="@+id/bottomAppBar2"
         android:layout_width="match_parent"
         android:layout_height="90dp"
         app:backgroundTint="#212327"
-        app:layout_constraintBottom_toBottomOf="parent" />
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:layout_editor_absoluteX="0dp" />
+
+    <TextView
+        android:id="@+id/progressText"
+        android:layout_width="35dp"
+        android:layout_height="35dp"
+        android:layout_centerInParent="true"
+        android:gravity="center"
+        android:textColor="@color/white"
+        android:textSize="18sp"
+        app:layout_constraintBottom_toBottomOf="@+id/progressBar"
+        app:layout_constraintEnd_toEndOf="@+id/progressBar"
+        app:layout_constraintStart_toStartOf="@+id/progressBar"
+        app:layout_constraintTop_toTopOf="@+id/progressBar" />
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        style="?android:attr/progressBarStyle"
+        android:layout_width="75dp"
+        android:layout_height="75dp"
+        android:layout_marginBottom="8dp"
+        app:layout_constraintBottom_toBottomOf="@+id/bottomAppBar2"
+        app:layout_constraintEnd_toEndOf="@+id/bottomAppBar2"
+        app:layout_constraintStart_toStartOf="@+id/bottomAppBar2"
+        app:layout_constraintTop_toBottomOf="@+id/imageView"
+        app:layout_constraintVertical_bias="1.0" />
 
     <Button
+        app:backgroundTint="@null"
         android:id="@+id/button_restart"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -38,27 +65,26 @@
         android:background="@drawable/custom_button_green"
         android:text="@string/restart"
         android:textColor="#00ff7b"
-        app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/progressBar"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.991" />
 
     <Button
-        android:id="@id/button_color"
+        app:backgroundTint="@null"
+        android:id="@+id/button_back"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="18dp"
         android:background="@drawable/custom_button_green"
-        android:text="@string/color"
+        android:text="@string/back"
         android:textColor="#00ff7b"
-        app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@+id/progressBar"
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.991" />
-
-    <!-- Hozzáadás: Horizontal Chain beállítása -->
 
     <Button
         android:id="@+id/button_change"
@@ -69,16 +95,17 @@
         android:text="@string/change"
         android:textColor="#00ff7b"
         app:backgroundTint="@null"
-        app:layout_constraintEnd_toStartOf="@+id/button_color"
+        app:layout_constraintEnd_toStartOf="@+id/button_back"
         app:layout_constraintHorizontal_bias="0.463"
         app:layout_constraintStart_toEndOf="@+id/button_restart"
         app:layout_constraintTop_toBottomOf="@+id/imageView" />
 
+    <!-- Hozzáadás: Horizontal Chain beállítása -->
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/barrier"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="start"
-        app:constraint_referenced_ids="button_restart, button_change, button_color" />
+        app:constraint_referenced_ids="button_back,button_restart" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

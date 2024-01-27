@@ -1,17 +1,27 @@
 package com.example.gps_app
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Point
 import android.graphics.Rect
 import android.os.Bundle
 import android.util.Log
+import android.view.View
 import android.widget.Button
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.osmdroid.api.IMapController
 import org.osmdroid.config.Configuration
 import org.osmdroid.events.MapListener
@@ -19,6 +29,7 @@ import org.osmdroid.events.ScrollEvent
 import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
 import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.io.File
@@ -30,7 +41,6 @@ import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
-import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
 import kotlin.properties.Delegates
 
 class MainActivity : FragmentActivity(), MapListener {
@@ -51,6 +61,7 @@ class MainActivity : FragmentActivity(), MapListener {
 
     companion object {
         const val EARTH_RADIUS = 6371000 // A Föld sugara méterben
+        private const val REQUEST_LOCATION = 1
     }
 
     data class Way(
@@ -95,8 +106,34 @@ class MainActivity : FragmentActivity(), MapListener {
         mMap.setMultiTouchControls(true)
         mMap.getLocalVisibleRect(Rect())
 
-        mMyLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), mMap)
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION)
+        }
+
+        // Alapértelmezett helyzet beállítása Európa középpontjára
         controller = mMap.controller
+        val defaultLocation = org.osmdroid.util.GeoPoint(50.0, 15.0) // Európa középpontja
+        mMap.setExpectedCenter(defaultLocation)
+        mMap.controller.setZoom(5.5) // 5.5-ös zoom szint
+
+        // Zoom vezérlők kikapcsolása
+        mMap.setBuiltInZoomControls(false)
+
+        mMyLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), mMap)
+
+        checkLocationPermissionAndStartLocationUpdates()
+
+        mMyLocationOverlay.runOnFirstFix {
+            runOnUiThread {
+                controller.setCenter(mMyLocationOverlay.myLocation)
+                controller.setZoom(7.0) // vagy egyéb kívánt zoom szint
+
+                // Az ikon és a helyzetkövetés eltávolítása a térképről
+                mMyLocationOverlay.disableMyLocation()
+                mMyLocationOverlay.disableFollowLocation()
+                mMap.overlays.remove(mMyLocationOverlay) // Ez eltávolítja az ikont
+            }
+        }
 
         mMyLocationOverlay.enableMyLocation()
         mMyLocationOverlay.enableFollowLocation()
@@ -115,30 +152,117 @@ class MainActivity : FragmentActivity(), MapListener {
         // Hozzáadás a MapView-hoz
         mMap.overlays.add(mRotationGestureOverlay)
 
-        controller.setZoom(6.0)
         mMap.overlays.add(mMyLocationOverlay)
         mMap.addMapListener(this)
 
-        val buttonNext: Button = findViewById(R.id.button_next)
-        buttonNext.setOnClickListener {
-            val areaCentroid = calculateVisibleAreaCentroid()
-            DataHolder.areaCentroid = areaCentroid
+        // Teljes képernyős mód beállítása + navigációs sáv elrejtése
+        window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
 
-            // az aktuális elforgatási szög
-            DataHolder.mapRotation = mMap.mapOrientation
+        val buttonComplex: Button = findViewById(R.id.button_nextComplex)
+        buttonComplex.setOnClickListener {
+            val intent = Intent(this, DrawingActivitySC::class.java)
+            startActivity(intent)
+        }
 
-            saveMapAsImage()
-            fetchRoadsFromOverpass()
-
-            DataHolder.mapZoomLevel = mMap.zoomLevelDouble
-            DataHolder.mapLatitude = mMap.mapCenter.latitude
-            DataHolder.mapLongitude = mMap.mapCenter.longitude
-
-            Log.d("MapCanva-MainActivity", "Graph: ${DataHolder.largeGraph}")
-
+        val buttonSimple: Button = findViewById(R.id.button_nextSimple)
+        buttonSimple.setOnClickListener {
             val intent = Intent(this, DrawingActivity::class.java)
             startActivity(intent)
         }
+
+        val button: Button = findViewById(R.id.button)
+
+        mMap.addMapListener(object : MapListener {
+            override fun onScroll(event: ScrollEvent?): Boolean {
+                return false
+            }
+
+            override fun onZoom(event: ZoomEvent?): Boolean {
+                val zoomLevel = mMap.zoomLevelDouble
+                if (zoomLevel >= 14.1) {
+                    // Ha a zoom szint elég nagy, zöldre váltjuk a gombot
+                    button.background = ContextCompat.getDrawable(this@MainActivity, R.drawable.custom_button_green)
+                    button.setTextColor(Color.parseColor("#00ff7b"))
+                } else {
+                    // Ha a zoom szint nem elég nagy, pirosra váltjuk vissza
+                    button.background = ContextCompat.getDrawable(this@MainActivity, R.drawable.custom_button_red)
+                    button.setTextColor(Color.parseColor("#ff0000"))
+                }
+                return true
+            }
+        })
+
+        // Kezdetben letiltjuk a gombokat
+        buttonComplex.isEnabled = false
+        buttonSimple.isEnabled = false
+
+        button.setOnClickListener {
+            if (mMap.zoomLevelDouble >= 14.1) {
+                // A zoom szint megfelelő, aktiváljuk a további gombokat
+                buttonComplex.isEnabled = true
+                buttonSimple.isEnabled = true
+                buttonComplex.background = ContextCompat.getDrawable(this, R.drawable.custom_button_green)
+                buttonSimple.background = ContextCompat.getDrawable(this, R.drawable.custom_button_green)
+                buttonComplex.setTextColor(Color.parseColor("#00ff7b"))
+                buttonSimple.setTextColor(Color.parseColor("#00ff7b"))
+
+                // A zoom szint megfelelő, folytatjuk a műveleteket
+                CoroutineScope(Dispatchers.IO).launch {
+                    Log.d("MapZoom", "Current zoom level: ${mMap.zoomLevelDouble}")
+                    val areaCentroid = calculateVisibleAreaCentroid()
+                    DataHolder.areaCentroid = areaCentroid
+
+                    // az aktuális elforgatási szög
+                    DataHolder.mapRotation = mMap.mapOrientation
+
+                    saveMapAsImage()
+                    fetchRoadsFromOverpass()
+
+                    DataHolder.mapZoomLevel = mMap.zoomLevelDouble
+                    DataHolder.mapLatitude = mMap.mapCenter.latitude
+                    DataHolder.mapLongitude = mMap.mapCenter.longitude
+
+                    Log.d("MapCanva-MainActivity", "Graph: ${DataHolder.largeGraph}")
+
+                    // A fő szálon frissítjük a gomb megjelenítését
+                    withContext(Dispatchers.Main) {
+                        button.background = ContextCompat.getDrawable(this@MainActivity, R.drawable.custom_button_red)
+                        button.setTextColor(Color.parseColor("#ff0000"))
+                    }
+                }
+            } else {
+                // A zoom szint nem megfelelő, tájékoztatjuk a felhasználót
+                Toast.makeText(this, "Please zoom in a bit better", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private fun checkLocationPermissionAndStartLocationUpdates() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // Engedély kérése
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION)
+        } else {
+            // Helyzetmeghatározás indítása
+            startLocationUpdates()
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_LOCATION) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Helyzetmeghatározás indítása, ha az engedély megadásra került
+                startLocationUpdates()
+            }
+        }
+    }
+
+    private fun startLocationUpdates() {
+        // Helyzetmeghatározás indításának logikája
+        mMyLocationOverlay.enableMyLocation()
+        mMyLocationOverlay.enableFollowLocation()
     }
 
     private fun fetchRoadsFromOverpass() {
@@ -257,7 +381,7 @@ class MainActivity : FragmentActivity(), MapListener {
     }
 
     private fun subdivideWay(nodes: List<Vertex>): List<Vertex> {
-        val segmentLength = 10.0 // 10 méteres szegmensekre osztás
+        val segmentLength = 8.0 // 8 méteres szegmensekre osztás
         val subdividedWay = mutableListOf<Vertex>()
         for (i in 0 until nodes.size - 1) {
             val start = nodes[i]
