@@ -23,14 +23,16 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:backgroundTint="#212327"/>
+        app:backgroundTint="#212327"
+        tools:ignore="BottomAppBar" />
 
     <com.google.android.material.bottomappbar.BottomAppBar
         android:id="@+id/bottomAppBar2"
         android:layout_width="match_parent"
-        android:layout_height="90dp"
+        android:layout_height="130dp"
         app:backgroundTint="#212327"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:ignore="BottomAppBar" />
 
     <Button
         android:id="@+id/button"
@@ -40,11 +42,11 @@
         android:background="@drawable/custom_button_red"
         android:text="@string/go"
         android:textColor="#ff0000"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/adView"
         app:layout_constraintEnd_toStartOf="@+id/button_nextSimple"
         app:layout_constraintStart_toEndOf="@+id/button_nextComplex"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.991" />
+        app:layout_constraintVertical_bias="1.0" />
 
     <Button
         android:id="@+id/button_nextComplex"
@@ -54,11 +56,11 @@
         android:background="@drawable/custom_button_red"
         android:text="@string/Complex"
         android:textColor="#ff0000"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/adView"
         app:layout_constraintEnd_toStartOf="@+id/button"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.991" />
+        app:layout_constraintVertical_bias="1.0" />
 
     <Button
         android:id="@+id/button_nextSimple"
@@ -68,11 +70,11 @@
         android:background="@drawable/custom_button_red"
         android:text="@string/Simple"
         android:textColor="#ff0000"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/adView"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/button"
         app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.991" />
+        app:layout_constraintVertical_bias="1.0" />
 
     <!-- Hozzáadás: Horizontal Chain beállítása -->
     <androidx.constraintlayout.widget.Barrier
@@ -81,5 +83,20 @@
         android:layout_height="wrap_content"
         app:barrierDirection="start"
         app:constraint_referenced_ids="button_nextComplex,button,button_nextSimple" />
+
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/adView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        app:adSize="BANNER"
+        app:adUnitId="ca-app-pub-3940256099942544/6300978111"
+        app:layout_constraintBottom_toBottomOf="@+id/bottomAppBar2"
+        app:layout_constraintEnd_toEndOf="@+id/bottomAppBar2"
+        app:layout_constraintHorizontal_bias="0.494"
+        app:layout_constraintStart_toStartOf="@+id/bottomAppBar2"
+        app:layout_constraintTop_toBottomOf="@+id/osmmap"
+        app:layout_constraintVertical_bias="1.0" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

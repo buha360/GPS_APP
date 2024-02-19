@@ -12,9 +12,10 @@
         android:layout_width="match_parent"
         android:layout_height="35dp"
         app:layout_constraintTop_toTopOf="parent"
-        app:backgroundTint="#212327"/>
+        app:backgroundTint="#212327"
+        tools:ignore="BottomAppBar" />
 
-    <com.example.gps_app.CanvasView
+    <com.wardanger3.gps_app.CanvasView
         android:id="@+id/canvasView"
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -25,27 +26,27 @@
     <com.google.android.material.bottomappbar.BottomAppBar
         android:id="@+id/bottomAppBar2"
         android:layout_width="match_parent"
-        android:layout_height="90dp"
+        android:layout_height="140dp"
         app:backgroundTint="#212327"
-        app:layout_constraintBottom_toBottomOf="parent"/>
+        app:layout_constraintBottom_toBottomOf="parent"
+        tools:ignore="BottomAppBar" />
 
     <Button
-        app:backgroundTint="@null"
-        android:background="@drawable/custom_button_green"
         android:id="@+id/saveButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_margin="18dp"
+        android:background="@drawable/custom_button_green"
         android:text="@string/save"
         android:textColor="#ff0000"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:backgroundTint="@null"
+        app:layout_constraintBottom_toTopOf="@+id/adView"
         app:layout_constraintEnd_toStartOf="@+id/buttonBack"
         app:layout_constraintStart_toEndOf="@+id/clearButton"
         app:layout_constraintTop_toBottomOf="@+id/canvasView"
-        app:layout_constraintVertical_bias="0.619" />
+        app:layout_constraintVertical_bias="0.627" />
 
     <Button
-        app:backgroundTint="@null"
         android:id="@+id/clearButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -53,14 +54,14 @@
         android:background="@drawable/custom_button_green"
         android:text="@string/clear"
         android:textColor="#ff0000"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:backgroundTint="@null"
+        app:layout_constraintBottom_toTopOf="@+id/adView"
         app:layout_constraintEnd_toStartOf="@+id/saveButton"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/canvasView"
-        app:layout_constraintVertical_bias="0.619" />
+        app:layout_constraintVertical_bias="0.627" />
 
     <Button
-        app:backgroundTint="@null"
         android:id="@+id/buttonBack"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -68,11 +69,12 @@
         android:background="@drawable/custom_button_green"
         android:text="@string/back"
         android:textColor="#00ff7b"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:backgroundTint="@null"
+        app:layout_constraintBottom_toTopOf="@+id/adView"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/saveButton"
         app:layout_constraintTop_toBottomOf="@+id/canvasView"
-        app:layout_constraintVertical_bias="0.619" />
+        app:layout_constraintVertical_bias="0.627" />
 
     <!-- Hozzáadás: Horizontal Chain beállítása -->
     <androidx.constraintlayout.widget.Barrier
@@ -81,5 +83,54 @@
         android:layout_height="wrap_content"
         app:barrierDirection="start"
         app:constraint_referenced_ids="clearButton,saveButton,buttonBack" />
+
+    <com.google.android.gms.ads.AdView
+        android:id="@+id/adView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_centerHorizontal="true"
+        app:adSize="BANNER"
+        app:adUnitId="ca-app-pub-3940256099942544/6300978111"
+        app:layout_constraintBottom_toBottomOf="@+id/bottomAppBar2"
+        app:layout_constraintEnd_toEndOf="@+id/bottomAppBar2"
+        app:layout_constraintHorizontal_bias="0.494"
+        app:layout_constraintStart_toStartOf="@+id/bottomAppBar2"/>
+
+    <ImageView
+        android:id="@+id/graphImageView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintBottom_toBottomOf="@+id/canvasView"
+        app:layout_constraintEnd_toEndOf="@+id/canvasView"
+        app:layout_constraintStart_toStartOf="@+id/canvasView"
+        app:layout_constraintTop_toBottomOf="@+id/bottomAppBar3"
+        tools:srcCompat="@tools:sample/avatars" />
+
+    <RadioGroup
+        android:id="@+id/radioGroup"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:buttonTint="#00ff7b"
+        app:layout_constraintBottom_toBottomOf="@+id/canvasView"
+        app:layout_constraintEnd_toEndOf="@+id/canvasView"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toStartOf="@+id/canvasView"
+        app:layout_constraintTop_toBottomOf="@+id/bottomAppBar3"
+        app:layout_constraintVertical_bias="1.0">
+
+        <RadioButton
+            android:id="@+id/radioButton"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:buttonTint="#00ff7b"
+            app:layout_constraintBottom_toBottomOf="@+id/canvasView"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintHorizontal_bias="1.0"
+            app:layout_constraintStart_toStartOf="@+id/canvasView"
+            app:layout_constraintTop_toBottomOf="@+id/bottomAppBar3"
+            app:layout_constraintVertical_bias="1.0" />
+
+    </RadioGroup>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
