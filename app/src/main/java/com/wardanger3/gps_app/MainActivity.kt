@@ -288,7 +288,6 @@ class MainActivity : FragmentActivity(), MapListener {
                 button.setTextColor(Color.parseColor("#00ff7b"))
 
                 CoroutineScope(Dispatchers.IO).launch {
-                    Log.d("MapZoom", "Current zoom level: ${mMap.zoomLevelDouble}")
                     val areaCentroid = calculateVisibleAreaCentroid()
                     DataHolder.areaCentroid = areaCentroid
 
@@ -301,8 +300,6 @@ class MainActivity : FragmentActivity(), MapListener {
                     DataHolder.mapZoomLevel = mMap.zoomLevelDouble
                     DataHolder.mapLatitude = mMap.mapCenter.latitude
                     DataHolder.mapLongitude = mMap.mapCenter.longitude
-
-                    Log.d("MapCanva-MainActivity", "Graph: ${DataHolder.largeGraph}")
 
                     if (selectedMode == "simple") {
                         val intent = Intent(this@MainActivity, DrawingActivity::class.java)

@@ -105,7 +105,7 @@ class CanvasViewSC(context: Context, attrs: AttributeSet) : AbstractCanvasView(c
                         val simplifiedSegment = douglasPeucker(segment, 50f)
                         if (simplifiedSegment.size > 1) {
                             // Itt használjuk a subdividedPath-t a segmentLength paraméterrel
-                            val subdividedSegment = subdividePath(simplifiedSegment, 180.0)
+                            val subdividedSegment = subdividePath(simplifiedSegment, 250.0)
                             for (i in 1 until subdividedSegment.size) {
                                 graph.edges.add(Edge(subdividedSegment[i - 1], subdividedSegment[i]))
                             }
@@ -121,7 +121,6 @@ class CanvasViewSC(context: Context, attrs: AttributeSet) : AbstractCanvasView(c
 
     private fun douglasPeucker(vertices: List<Vertex>, epsilon: Float): List<Vertex> {
         if (vertices.size <= 2) {
-            Log.d("DouglasPeucker", "Nincs szükség finomításra, pontok száma: ${vertices.size}")
             return vertices
         }
 
@@ -134,14 +133,11 @@ class CanvasViewSC(context: Context, attrs: AttributeSet) : AbstractCanvasView(c
         for (i in 1 until vertices.size - 1) {
             if (!DataHolder.endPoints.contains(vertices[i])) {
                 val distance = pointLineDistance(vertices[i], firstVertex, lastVertex)
-                Log.d("DouglasPeucker", "Pont: ${vertices[i]}, Távolság: $distance")
 
                 if (distance > maxDistance) {
                     index = i
                     maxDistance = distance.toFloat()
                 }
-            } else {
-                Log.d("DouglasPeucker", "EndPoint találat, pont kihagyva: ${vertices[i]}")
             }
         }
 

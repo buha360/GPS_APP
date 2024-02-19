@@ -11,13 +11,13 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
 
     data class LogPolarCoordinate(val radius: Double, val angle: Double)
 
-    private var logPolarCoordinatesOriginal: List<LogPolarCoordinate>
-    private var logPolarCoordinatesTransformed: List<LogPolarCoordinate>
+    private var logPolarCoordinatesOriginal: MutableList<LogPolarCoordinate>
+    private var logPolarCoordinatesTransformed: MutableList<LogPolarCoordinate>
 
     init {
         val (origin, maxSize) = adjustCoordinateSystem(originalGraph)
-        logPolarCoordinatesOriginal = calculateLogPolarCoordinates(originalGraph, origin, maxSize)
-        logPolarCoordinatesTransformed = calculateLogPolarCoordinates(transformedGraph, origin, maxSize)
+        logPolarCoordinatesOriginal = calculateLogPolarCoordinates(originalGraph, origin, maxSize).toMutableList()
+        logPolarCoordinatesTransformed = calculateLogPolarCoordinates(transformedGraph, origin, maxSize).toMutableList()
     }
 
     fun compareGraphs(): Double {
@@ -30,14 +30,18 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
     }
 
     private fun calculateLogPolarCoordinates(graph: CanvasViewSC.Graph, origin: Pair<Double, Double>, maxSize: Double): List<LogPolarCoordinate> {
-        return graph.vertices.map { vertex ->
-            cartesianToLogPolar(vertex, origin, maxSize)
+        val logPolarCoordinates = mutableListOf<LogPolarCoordinate>()
+        graph.edges.forEach { edge ->
+            // Mindkét végpont log-polar koordinátáinak számítása
+            logPolarCoordinates.add(cartesianToLogPolar(edge.start, origin, maxSize))
+            logPolarCoordinates.add(cartesianToLogPolar(edge.end, origin, maxSize))
         }
+        return logPolarCoordinates
     }
 
     private fun createHistograms(logPolarCoordinates: List<LogPolarCoordinate>): List<Histogram> {
-        val numRadiusBins = 6
-        val numAngleBins = 18
+        val numRadiusBins = 12
+        val numAngleBins = 20
         return logPolarCoordinates.mapIndexed { index, coordinate ->
             val histogram = Histogram(numRadiusBins, numAngleBins)
             logPolarCoordinates.forEach { otherCoordinate ->
@@ -79,24 +83,29 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
             Log.e("ShapeContext", "IndexOutOfBoundsException in calculateGlobalSimilarity", e)
         }
 
-        Log.d("ShapeContext-SC","Similarity score: $similarityScore")
+        //Log.d("ShapeContext-SC","Similarity score: $similarityScore")
         return similarityScore
     }
 
     private fun determineBinRadius(radius1: Double, radius2: Double, numBinsRadius: Int): Int {
-        // A logaritmusos skálázás finomhangolása
-        val logBase = 2.0 // A logaritmus alapjának módosítása lehetőség szerint
-        val adjustedRadius1 = ln(radius1 + 1, logBase) // A logaritmus alapjának alkalmazása
+
+        /*
+            Lehetséges, hogy a logbaset, kell beállítani tizedes jegyre ?
+            mondjuk ettől még fontos a binek és a padding megfelelő beállítása
+         */
+
+        val logBase = 1.0
+        val maxRadius = ln(1.0 + 1, logBase)
+        val adjustedRadius1 = ln(radius1 + 1, logBase)
         val adjustedRadius2 = ln(radius2 + 1, logBase)
         val distance = abs(adjustedRadius1 - adjustedRadius2)
-        val normalizedDistance = distance / ln(10.0 + 1, logBase) // A maximális távolság skálázása
+        val normalizedDistance = distance / maxRadius // Normalizálás a legnagyobb lehetséges logaritmusos távolsághoz
         return (normalizedDistance * numBinsRadius).toInt().coerceIn(0, numBinsRadius - 1)
     }
 
     private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int): Int {
-        // A bin számának finomhangolása a szögek számára
         val diffAngle = abs(angle1 - angle2)
-        val normalizedAngle = diffAngle / (2 * kotlin.math.PI)
+        val normalizedAngle = diffAngle / (2 * kotlin.math.PI) // Ez már jól normalizálja az értékeket
         return (normalizedAngle * numBinsAngle).toInt().coerceIn(0, numBinsAngle - 1)
     }
 
@@ -111,12 +120,15 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
         val maxY = graph.vertices.maxOf { it.y }
         val minY = graph.vertices.minOf { it.y }
 
-        val padding = 1.95
-        val width = (maxX - minX) * padding
-        val height = (maxY - minY) * padding
+        // Az alakzat méretének kiszámítása
+        val diagonal = sqrt((maxX - minX).pow(2) + (maxY - minY).pow(2))
+        val padding = maxOf(1.0, diagonal * 0.20) // Dinamikus padding, legalább 1.2 vagy az átló 20%-a
+
+        val width = maxX - minX + 2 * padding
+        val height = maxY - minY + 2 * padding
         val maxSize = maxOf(width, height)
 
-        val origin = Pair(minX - (maxSize - width) / 2, minY - (maxSize - height) / 2)
+        val origin = Pair(minX - padding, minY - padding)
 
         return Pair(origin, maxSize)
     }

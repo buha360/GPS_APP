@@ -87,11 +87,11 @@ class CompareGraphsSC {
         var bestMatchScore = Double.MAX_VALUE
 
         coroutineScope {
-            val totalIterations = spiralPoints.size * scaleFactors.size * 24
+            val totalIterations = spiralPoints.size * scaleFactors.size * 30
             var currentIteration = 0
             val jobs = spiralPoints.flatMap { spiralPoint ->
                 scaleFactors.flatMap { scaleFactor ->
-                    (0 until 360 step 15).map { angle ->
+                    (0 until 360 step 12).map { angle ->
                         async(Dispatchers.Default) {
                             val scaledGraph = scaleGraph(transformedGraph, scaleFactor)
                             val rotatedGraph = rotateGraph(scaledGraph, angle.toDouble(), calculateCentroid(scaledGraph.vertices))
@@ -219,8 +219,8 @@ class CompareGraphsSC {
             vertex to calculateDistance(vertex, originalGoal)
         }.sortedBy { it.second }
 
-        // Visszaadjuk a legközelebbi három pontot, kihagyva az eredeti célpontot, ha szerepel a listában
-        return distances.filter { it.first != originalGoal }.map { it.first }.take(4)
+        // Visszaadjuk a legközelebbi 6 pontot, kihagyva az eredeti célpontot, ha szerepel a listában
+        return distances.filter { it.first != originalGoal }.map { it.first }.take(15)
     }
 
     private fun constructPath(parentNodes: Map<CanvasViewSC.Vertex, CanvasViewSC.Vertex?>, goal: CanvasViewSC.Vertex): List<CanvasViewSC.Vertex> {
@@ -233,13 +233,13 @@ class CompareGraphsSC {
         return path.reversed()
     }
 
-    private fun generatePoissonDiscPointsWithQuadtree(canvasWidth: Int, canvasHeight: Int, minDist: Double = 60.0, maxDist: Double = 100.0, numberOfPoints: Int = 10): List<CanvasViewSC.Vertex> {
+    private fun generatePoissonDiscPointsWithQuadtree(canvasWidth: Int, canvasHeight: Int, minDist: Double = 83.0, maxDist: Double = 86.0, numberOfPoints: Int = 10): List<CanvasViewSC.Vertex> {
         val samplePoints = mutableListOf<CanvasViewSC.Vertex>()
         val activeList = mutableListOf<CanvasViewSC.Vertex>()
         val random = Random.Default
         val quadtree = Quadtree(Rectangle(0.0, 0.0, canvasWidth.toDouble(), canvasHeight.toDouble()), 4)
 
-        // Kezdőpont hozzáadása és Quadtree-hez adása
+        // Kezdőpont hozzáadása és Quadtree
         val initialPoint = CanvasViewSC.Vertex(canvasWidth / 2.0, canvasHeight / 2.0)
         quadtree.insert(initialPoint)
         samplePoints.add(initialPoint)
