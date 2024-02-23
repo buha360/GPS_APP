@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:background="@drawable/custom_button_green"
-        android:text="@string/go"
+        android:text="Next"
         android:textColor="#00ff7b"
         app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -27,7 +27,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="48dp"
-        android:text="Rajzolás"
+        android:text="Drawing"
         android:textAlignment="center"
         android:textColor="@color/white"
         android:textSize="14pt"
@@ -38,24 +38,23 @@
 
     <TextView
         android:id="@+id/textView"
-        android:layout_width="374dp"
-        android:layout_height="133dp"
-        android:text="Miután átértünk a rajzoló felületre, három gombot láthatunk az alsó részen. Ezek a törlés (clear), mentés (save), és vissza (back) funkciókat biztosítják."
+        android:layout_width="371dp"
+        android:layout_height="145dp"
+        android:text="Once we move to the drawing interface, we can see three buttons at the bottom. These provide the functions of clearing (clear), saving (save), and going back (back)."
         android:textAlignment="center"
         android:textColor="@color/white"
         android:textSize="10pt"
         app:layout_constraintBottom_toTopOf="@+id/buttonNext"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.491"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView2"
-        app:layout_constraintVertical_bias="0.037" />
+        app:layout_constraintVertical_bias="0.055" />
 
     <TextView
         android:id="@+id/textView3"
         android:layout_width="368dp"
-        android:layout_height="371dp"
-        android:text="A jobb alsó sarokban található egy rádiógomb, amely lehetővé teszi a kiválasztott terület úthálózatának megtekintését, segítve ezzel a rajz elkészítését. A gomb színe is tájékoztat: ha zöldre vált, mint a mentés gomb kerete, akkor az adatok sikeresen beérkeztek. Amennyiben hosszú ideig piros maradna, érdemes lehet mobilinternetre váltani, mivel a Wi-Fi beállításokkal probléma lehet."
+        android:layout_height="345dp"
+        android:text="In the bottom right corner, there's a radio button that allows viewing the road network of the selected area, assisting with the drawing. The button's color also informs us: if it turns green, like the frame of the save button, then the data has successfully arrived. If it remains red for a long time, it might be wise to switch to mobile internet, as there could be issues with the Wi-Fi settings."
         android:textAlignment="center"
         android:textColor="@color/white"
         android:textSize="10pt"
@@ -64,6 +63,6 @@
         app:layout_constraintHorizontal_bias="0.488"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView"
-        app:layout_constraintVertical_bias="0.513" />
+        app:layout_constraintVertical_bias="0.745" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

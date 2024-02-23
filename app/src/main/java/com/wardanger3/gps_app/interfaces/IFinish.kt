@@ -2,7 +2,7 @@ package com.wardanger3.gps_app.interfaces
 
 interface IFinish {
     enum class DisplayMode {
-        Original, Transformed, Both
+        Original, Edited, Both
     }
 
     companion object {

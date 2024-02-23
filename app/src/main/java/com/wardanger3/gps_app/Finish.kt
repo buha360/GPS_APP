@@ -71,8 +71,8 @@ class Finish : AppCompatActivity(), IFinish {
         changeButton.setOnClickListener {
             // Váltás a megjelenítési módok között
             currentDisplayMode = when (currentDisplayMode) {
-                IFinish.DisplayMode.Original -> IFinish.DisplayMode.Transformed
-                IFinish.DisplayMode.Transformed -> IFinish.DisplayMode.Both
+                IFinish.DisplayMode.Original -> IFinish.DisplayMode.Edited
+                IFinish.DisplayMode.Edited -> IFinish.DisplayMode.Both
                 IFinish.DisplayMode.Both -> IFinish.DisplayMode.Original
             }
             updateChangeButtonText()
@@ -184,7 +184,7 @@ class Finish : AppCompatActivity(), IFinish {
         val changeButton = findViewById<Button>(R.id.button_change)
         changeButton.text = when (currentDisplayMode) {
             IFinish.DisplayMode.Original -> "Original"
-            IFinish.DisplayMode.Transformed -> "Transformed"
+            IFinish.DisplayMode.Edited -> "Edited"
             IFinish.DisplayMode.Both -> "Both"
         }
     }
@@ -229,7 +229,7 @@ class Finish : AppCompatActivity(), IFinish {
         loadImage() // Minden váltás előtt újratöltjük az alapképet
         when (currentDisplayMode) {
             IFinish.DisplayMode.Original -> drawOriginalImage()
-            IFinish.DisplayMode.Transformed -> drawTransformedImage()
+            IFinish.DisplayMode.Edited -> drawTransformedImage()
             IFinish.DisplayMode.Both -> drawBothImages()
         }
     }

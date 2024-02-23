@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:background="@drawable/custom_button_green"
-        android:text="@string/go"
+        android:text="Next"
         android:textColor="#00ff7b"
         app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -30,7 +30,7 @@
         android:textSize="10pt"
         android:textColor="@color/white"
         android:textAlignment="center"
-        android:text="Üdvözlünk az alkalmazásban angol"
+        android:text="Welcome to the application"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.497"
         app:layout_constraintStart_toStartOf="parent"
@@ -40,15 +40,14 @@
         android:id="@+id/textView"
         android:layout_width="327dp"
         android:layout_height="220dp"
-        android:textSize="10pt"
-        android:textColor="@color/white"
+        android:text="We will now show you a quick guide that helps you get to know the key features of our app and how to use them."
         android:textAlignment="center"
-        android:text="Most egy gyors útmutatót mutatunk be, amely segít megismerni az alkalmazásunk kulcsfontosságú funkcióit és hogyan használd őket."
+        android:textColor="@color/white"
+        android:textSize="10pt"
         app:layout_constraintBottom_toTopOf="@+id/buttonNext"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView2"
-        app:layout_constraintVertical_bias="0.439" />
+        app:layout_constraintVertical_bias="0.519" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

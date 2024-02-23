@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:background="@drawable/custom_button_green"
-        android:text="@string/go"
+        android:text="Next"
         android:textColor="#00ff7b"
         app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -30,7 +30,7 @@
         android:textSize="14pt"
         android:textColor="@color/white"
         android:textAlignment="center"
-        android:text="Illesztési módok"
+        android:text="Matching modes"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.497"
         app:layout_constraintStart_toStartOf="parent"
@@ -40,7 +40,7 @@
         android:id="@+id/textView"
         android:layout_width="347dp"
         android:layout_height="84dp"
-        android:text="Két illesztési mód található az alkalmazásban, a Simple és Complex módok."
+        android:text="There are two matching modes available in the application: Simple and Complex modes."
         android:textAlignment="center"
         android:textColor="@color/white"
         android:textSize="10pt"
@@ -48,13 +48,13 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView2"
-        app:layout_constraintVertical_bias="0.134" />
+        app:layout_constraintVertical_bias="0.063" />
 
     <TextView
         android:id="@+id/textView3"
         android:layout_width="366dp"
         android:layout_height="86dp"
-        android:text="- A Simple mód egyetlen illesztést hajt végre, gyors és egyszerű megoldást kínálva."
+        android:text="- The Simple mode performs a single match, offering a quick and straightforward solution."
         android:textAlignment="center"
         android:textColor="@color/white"
         android:textSize="10pt"
@@ -63,13 +63,13 @@
         app:layout_constraintHorizontal_bias="0.488"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView"
-        app:layout_constraintVertical_bias="0.215" />
+        app:layout_constraintVertical_bias="0.099" />
 
     <TextView
         android:id="@+id/textView4"
-        android:layout_width="373dp"
-        android:layout_height="125dp"
-        android:text="- A Complex mód egy fejlettebb algoritmust használ, amely törekszik a lehető legpontosabb illesztés megtalálására!"
+        android:layout_width="378dp"
+        android:layout_height="193dp"
+        android:text="- The Complex mode uses an advanced algorithm aiming to find the most accurate match possible! Please note, currently, this mode should be used with a single line drawing only!"
         android:textAlignment="center"
         android:textColor="@color/white"
         android:textSize="10pt"
