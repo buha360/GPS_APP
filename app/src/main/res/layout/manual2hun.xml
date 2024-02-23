@@ -27,10 +27,10 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="64dp"
-        android:textSize="10pt"
+        android:textSize="14pt"
         android:textColor="@color/white"
         android:textAlignment="center"
-        android:text="Üdvözlünk az alkalmazásban angol"
+        android:text="Illesztési módok"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.497"
         app:layout_constraintStart_toStartOf="parent"
@@ -38,17 +38,46 @@
 
     <TextView
         android:id="@+id/textView"
-        android:layout_width="327dp"
-        android:layout_height="220dp"
-        android:textSize="10pt"
-        android:textColor="@color/white"
+        android:layout_width="347dp"
+        android:layout_height="84dp"
+        android:text="Két illesztési mód található az alkalmazásban, a Simple és Complex módok."
         android:textAlignment="center"
-        android:text="Most egy gyors útmutatót mutatunk be, amely segít megismerni az alkalmazásunk kulcsfontosságú funkcióit és hogyan használd őket."
+        android:textColor="@color/white"
+        android:textSize="10pt"
         app:layout_constraintBottom_toTopOf="@+id/buttonNext"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.498"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/textView2"
-        app:layout_constraintVertical_bias="0.439" />
+        app:layout_constraintVertical_bias="0.134" />
+
+    <TextView
+        android:id="@+id/textView3"
+        android:layout_width="366dp"
+        android:layout_height="86dp"
+        android:text="- A Simple mód egyetlen illesztést hajt végre, gyors és egyszerű megoldást kínálva."
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="10pt"
+        app:layout_constraintBottom_toTopOf="@+id/buttonNext"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.488"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textView"
+        app:layout_constraintVertical_bias="0.215" />
+
+    <TextView
+        android:id="@+id/textView4"
+        android:layout_width="373dp"
+        android:layout_height="125dp"
+        android:text="- A Complex mód egy fejlettebb algoritmust használ, amely törekszik a lehető legpontosabb illesztés megtalálására!"
+        android:textAlignment="center"
+        android:textColor="@color/white"
+        android:textSize="10pt"
+        app:layout_constraintBottom_toTopOf="@+id/buttonNext"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.497"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/textView3"
+        app:layout_constraintVertical_bias="0.264" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

@@ -106,7 +106,6 @@ class CompareGraphsSC {
                             if (similarityScore < bestMatchScore) {
                                 bestMatchScore = similarityScore
                                 bestMatch = pathSegment
-                                // Log.d("ShapeContext-CG", "BestMatchScore: $bestMatchScore BestMatch: $bestMatch")
                             }
 
                             currentIteration++
@@ -132,24 +131,17 @@ class CompareGraphsSC {
             val start = matches[i].second
             val end = matches[i + 1].second
 
-            // Log.d("CompareGraphsSC", "Finding path between points: Start: $start, End: $end")
-
             var pathSegment = findBestPathInLargeGraph(largeGraph, start, end)
 
             if (pathSegment.isEmpty()) {
-                // Log.d("CompareGraphsSC", "No path found between: $start and $end, looking for alternatives.")
                 val alternatives = findAlternativeEndpoints(largeGraph, end)
 
                 for (alternativeEnd in alternatives) {
                     pathSegment = findBestPathInLargeGraph(largeGraph, start, alternativeEnd)
-                    if (pathSegment.isNotEmpty()) {
-                        // Log.d("CompareGraphsSC", "Alternative path found. Segment size: ${pathSegment.size}")
-                    }
                 }
 
                 if (pathSegment.isEmpty()) {
-                    // Log.d("CompareGraphsSC", "No alternative path found either.")
-                    continue // Skip to the next segment if no path found
+                    continue
                 }
             }
 
@@ -163,8 +155,6 @@ class CompareGraphsSC {
                 completeGraph.edges.add(CanvasViewSC.Edge(pathStart, pathEnd))
             }
         }
-
-        // Log.d("CompareGraphsSC", "Complete graph built successfully. Vertices: ${completeGraph.vertices.size}, Edges: ${completeGraph.edges.size}")
 
         return completeGraph
     }
@@ -220,7 +210,7 @@ class CompareGraphsSC {
         }.sortedBy { it.second }
 
         // Visszaadjuk a legközelebbi 6 pontot, kihagyva az eredeti célpontot, ha szerepel a listában
-        return distances.filter { it.first != originalGoal }.map { it.first }.take(15)
+        return distances.filter { it.first != originalGoal }.map { it.first }.take(6)
     }
 
     private fun constructPath(parentNodes: Map<CanvasViewSC.Vertex, CanvasViewSC.Vertex?>, goal: CanvasViewSC.Vertex): List<CanvasViewSC.Vertex> {
@@ -233,15 +223,13 @@ class CompareGraphsSC {
         return path.reversed()
     }
 
-    private fun generatePoissonDiscPointsWithQuadtree(canvasWidth: Int, canvasHeight: Int, minDist: Double = 83.0, maxDist: Double = 86.0, numberOfPoints: Int = 10): List<CanvasViewSC.Vertex> {
+    private fun generatePoissonDiscPointsWithQuadtree(canvasWidth: Int, canvasHeight: Int, minDist: Double = 85.0, maxDist: Double = 86.0, numberOfPoints: Int = 85): List<CanvasViewSC.Vertex> {
         val samplePoints = mutableListOf<CanvasViewSC.Vertex>()
         val activeList = mutableListOf<CanvasViewSC.Vertex>()
         val random = Random.Default
-        val quadtree = Quadtree(Rectangle(0.0, 0.0, canvasWidth.toDouble(), canvasHeight.toDouble()), 4)
 
         // Kezdőpont hozzáadása és Quadtree
         val initialPoint = CanvasViewSC.Vertex(canvasWidth / 2.0, canvasHeight / 2.0)
-        quadtree.insert(initialPoint)
         samplePoints.add(initialPoint)
         activeList.add(initialPoint)
 
@@ -263,8 +251,7 @@ class CompareGraphsSC {
 
                 val isInsideCircle = (newX - centerX).pow(2) + (newY - centerY).pow(2) <= maxRadius.pow(2)
 
-                if (isInsideCircle && isPointFarEnough(newPoint, quadtree, minDist)) {
-                    quadtree.insert(newPoint)
+                if (isInsideCircle) {
                     activeList.add(newPoint)
                     samplePoints.add(newPoint)
                     found = true
@@ -281,16 +268,6 @@ class CompareGraphsSC {
         return samplePoints
     }
 
-    private fun isPointFarEnough(point: CanvasViewSC.Vertex, quadtree: Quadtree, minDist: Double): Boolean {
-        val searchArea = Rectangle(point.x - minDist, point.y - minDist, 2 * minDist, 2 * minDist)
-        val nearbyPoints = quadtree.query(searchArea)
-        return nearbyPoints.none { existingPoint ->
-            val dx = existingPoint.x - point.x
-            val dy = existingPoint.y - point.y
-            sqrt(dx * dx + dy * dy) < minDist
-        }
-    }
-
     private fun findClosestPoints(largeGraph: Map<CanvasViewSC.Vertex, MutableList<CanvasViewSC.Vertex>>, transformedGraph: CanvasViewSC.Graph): MutableList<Pair<CanvasViewSC.Vertex, CanvasViewSC.Vertex>> {
         val matches = mutableListOf<Pair<CanvasViewSC.Vertex, CanvasViewSC.Vertex>>()
         transformedGraph.vertices.forEach { transformedVertex ->
@@ -298,6 +275,7 @@ class CompareGraphsSC {
                 ?: transformedVertex
             matches.add(Pair(transformedVertex, closest))
         }
+
         return matches
     }
 

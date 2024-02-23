@@ -3,6 +3,7 @@ package com.wardanger3.gps_app
 import android.annotation.SuppressLint
 import android.content.ContentValues
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -17,6 +18,7 @@ import android.widget.RadioGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.widget.CompoundButtonCompat
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.FullScreenContentCallback
@@ -62,6 +64,10 @@ class DrawingActivity : AppCompatActivity() {
         val radioGroup: RadioGroup = findViewById(R.id.radioGroup)
         val radioButton: RadioButton = findViewById(R.id.radioButton)
         val graphImageView: ImageView = findViewById(R.id.graphImageView)
+        val colorStateList = ColorStateList.valueOf(Color.parseColor("#ff0000"))
+
+        CompoundButtonCompat.setButtonTintList(radioButton, colorStateList)
+        radioButton.isEnabled = false  // Letiltja a RadioButton-t
 
         clearButton.background = ContextCompat.getDrawable(this@DrawingActivity, R.drawable.custom_button_red)
         backButton.background = ContextCompat.getDrawable(this@DrawingActivity, R.drawable.custom_button_green)
@@ -115,6 +121,11 @@ class DrawingActivity : AppCompatActivity() {
             runOnUiThread {
                 saveButton.background = ContextCompat.getDrawable(this, R.drawable.custom_button_green)
                 isGraphBuilt = true
+
+                // RadioButton színének változtatása zöldre
+                val colorStateListGreen = ColorStateList.valueOf(Color.parseColor("#00ff7b"))
+                CompoundButtonCompat.setButtonTintList(radioButton, colorStateListGreen)
+                radioButton.isEnabled = true  // Engedélyezi a RadioButton-t
             }
         }
 

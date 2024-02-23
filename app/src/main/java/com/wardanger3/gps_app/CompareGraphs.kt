@@ -69,7 +69,6 @@ class CompareGraph {
         }
     }
 
-
     private fun selectStartingVertex(graph: CanvasView.Graph): CanvasView.Vertex {
         return graph.vertices.first()
     }
@@ -81,7 +80,7 @@ class CompareGraph {
 
         if (correspondingEdge != null) {
             val correspondingLength = calculateManhattanDistance(correspondingEdge.start, correspondingEdge.end)
-            if (edgeLength < 0.9 * correspondingLength || edgeLength > 1.1 * correspondingLength) {
+            if (edgeLength < 0.8 * correspondingLength || edgeLength > 1.2 * correspondingLength) {
                 return false // Az él hossza nem felel meg a kritériumoknak
             }
 
@@ -163,6 +162,8 @@ class CompareGraph {
         return trimmedGraph
     }
 
+    /*
+    eredeti
     private fun buildCompletePath(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
         val completeGraph = CanvasView.Graph()
         val currentPathSegment = mutableListOf<CanvasView.Vertex>()
@@ -192,6 +193,74 @@ class CompareGraph {
 
         return removeUnwantedEdges(completeGraph)
     }
+    */
+
+    private fun buildCompletePath(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
+        val completeGraph = CanvasView.Graph()
+        val currentPathSegment = mutableListOf<CanvasView.Vertex>()
+
+        for (i in matches.indices) {
+            val start = matches[i].second
+            val isStartMatched = DataHolder.matchedEndPoints.any { it.second == start }
+
+            if (isStartMatched && currentPathSegment.isNotEmpty()) {
+                // Zárja le az aktuális szegmentumot, ha új objektum kezdődik
+                addPathSegmentToGraph(currentPathSegment, completeGraph)
+                currentPathSegment.clear()
+            }
+            currentPathSegment.add(start)
+
+            if (i < matches.size - 1 && !isStartMatched) {
+                // Csak akkor folytatja az útvonalat, ha nem egy új objektum kezdete
+                val end = matches[i + 1].second
+                var pathSegment = findBestPathInLargeGraph(largeGraph, start, end)
+
+                if (pathSegment.isEmpty()) {
+                    // Nincs közvetlen útvonal, alternatívák keresése
+                    val alternatives = findAlternativeEndpoints(largeGraph, end)
+                    for (alternativeEnd in alternatives) {
+                        pathSegment = findBestPathInLargeGraph(largeGraph, start, alternativeEnd)
+                        if (pathSegment.isNotEmpty()) break // Megtaláltuk az alternatív útvonalat
+                    }
+                }
+                currentPathSegment.addAll(pathSegment)
+            }
+        }
+
+        if (currentPathSegment.isNotEmpty()) {
+            addPathSegmentToGraph(currentPathSegment, completeGraph)
+        }
+
+        return removeUnwantedEdges(completeGraph)
+    }
+
+    private fun addPathSegmentToGraph(pathSegment: List<CanvasView.Vertex>, graph: CanvasView.Graph) {
+        pathSegment.forEach { vertex ->
+            graph.vertices.add(vertex)
+        }
+
+        for (j in 0 until pathSegment.size - 1) {
+            val pathStart = pathSegment[j]
+            val pathEnd = pathSegment[j + 1]
+            graph.edges.add(CanvasView.Edge(pathStart, pathEnd))
+        }
+    }
+
+    private fun findAlternativeEndpoints(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, originalGoal: CanvasView.Vertex): List<CanvasView.Vertex> {
+        // Távolság alapján rendezett csúcsok és távolságuk listája
+        val distances = largeGraph.keys.map { vertex ->
+            vertex to calculateDistance(vertex, originalGoal)
+        }.sortedBy { it.second }
+
+        // Visszaadjuk a legközelebbi 15 pontot, kihagyva az eredeti célpontot, ha szerepel a listában
+        return distances.filter { it.first != originalGoal }.map { it.first }.take(15)
+    }
+
+    private fun calculateDistance(point1: CanvasView.Vertex, point2: CanvasView.Vertex): Double {
+        val dx = point2.x - point1.x
+        val dy = point2.y - point1.y
+        return sqrt(dx * dx + dy * dy)
+    }
 
     private fun removeUnwantedEdges(graph: CanvasView.Graph): CanvasView.Graph {
         val edgesToRemove = mutableListOf<CanvasView.Edge>()
@@ -207,18 +276,6 @@ class CompareGraph {
         return graph
     }
 
-    private fun addPathSegmentToGraph(pathSegment: List<CanvasView.Vertex>, graph: CanvasView.Graph) {
-        pathSegment.forEach { vertex ->
-            graph.vertices.add(vertex)
-        }
-
-        for (j in 0 until pathSegment.size - 1) {
-            val pathStart = pathSegment[j]
-            val pathEnd = pathSegment[j + 1]
-            graph.edges.add(CanvasView.Edge(pathStart, pathEnd))
-        }
-    }
-
     private fun findBestPathInLargeGraph(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, start: CanvasView.Vertex, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
         // Ellenőrzés, hogy a start pont szerepel-e a matchedEndPoints listában
         Log.d("CompareGraph-DEBUG", "Finding best path from $start to $goal")
@@ -230,7 +287,7 @@ class CompareGraph {
             return emptyList()
         }
 
-        // Heurisztika: Euklideszi távolság a célcsúcshoz
+        // Heurisztika: Manhatta távolság a célcsúcshoz
         val heuristic = { vertex: CanvasView.Vertex -> calculateManhattanDistance(vertex, goal) }
         val openList = PriorityQueue<AStarNode>()
         val closedSet = mutableSetOf<CanvasView.Vertex>()
@@ -269,12 +326,12 @@ class CompareGraph {
     private fun findClosestPoints(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph): MutableList<Pair<CanvasView.Vertex, CanvasView.Vertex>> {
         val matches = mutableListOf<Pair<CanvasView.Vertex, CanvasView.Vertex>>()
 
-
         transformedGraph.vertices.forEach { transformedVertex ->
             val closest = largeGraph.keys.minByOrNull { calculateManhattanDistance(it, transformedVertex) } ?: transformedVertex
             matches.add(Pair(transformedVertex, closest))
         }
 
+        DataHolder.clearData()
         CanvasView.DataHolder.endPoints.forEach { endPoint ->
             val closestMatch = matches.minByOrNull { calculateManhattanDistance(it.second, endPoint) }
             closestMatch?.let {

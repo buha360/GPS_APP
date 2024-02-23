@@ -30,7 +30,7 @@
         android:textSize="10pt"
         android:textColor="@color/white"
         android:textAlignment="center"
-        android:text="Üdvözlünk az alkalmazásban angol"
+        android:text="Üdvözlünk az alkalmazásban magyar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.497"
         app:layout_constraintStart_toStartOf="parent"

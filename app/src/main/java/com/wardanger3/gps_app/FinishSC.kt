@@ -29,10 +29,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
-import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.sin
-import kotlin.math.sqrt
 import kotlin.properties.Delegates
 
 class FinishSC : AppCompatActivity(), CompareGraphsSC.ProgressListener, IFinish {
@@ -159,6 +155,40 @@ class FinishSC : AppCompatActivity(), CompareGraphsSC.ProgressListener, IFinish 
         }
     }
 
+    private fun convertMapToCanvasViewGraph(map: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
+        val graph = CanvasView.Graph()
+        map.forEach { (vertex, neighbors) ->
+            graph.vertices.add(vertex)
+            neighbors.forEach { neighbor ->
+                graph.edges.add(CanvasView.Edge(vertex, neighbor))
+            }
+        }
+        return graph
+    }
+
+    private fun convertCanvasViewGraphToCanvasViewSCGraph(graph: CanvasView.Graph): CanvasViewSC.Graph {
+        val convertedGraph = CanvasViewSC.Graph()
+        val vertexMap = hashMapOf<Pair<Double, Double>, CanvasViewSC.Vertex>()
+
+        // Pre-fill the hashmap with converted vertices for fast lookup
+        graph.vertices.forEach { vertex ->
+            val scVertex = CanvasViewSC.Vertex(vertex.x, vertex.y)
+            convertedGraph.vertices.add(scVertex)
+            vertexMap[vertex.x to vertex.y] = scVertex
+        }
+
+        // Use the hashmap for quick edge conversion
+        graph.edges.forEach { edge ->
+            val startVertex = vertexMap[edge.start.x to edge.start.y]
+            val endVertex = vertexMap[edge.end.x to edge.end.y]
+            if (startVertex != null && endVertex != null) {
+                convertedGraph.edges.add(CanvasViewSC.Edge(startVertex, endVertex))
+            }
+        }
+
+        return convertedGraph
+    }
+
     override fun drawOriginalImage() {
         val canvas = Canvas(bitmap)
         val paint = Paint().apply {
@@ -235,38 +265,6 @@ class FinishSC : AppCompatActivity(), CompareGraphsSC.ProgressListener, IFinish 
             map.computeIfAbsent(edge.end) { mutableListOf() }.add(edge.start)
         }
         return map
-    }
-
-    private fun convertMapToCanvasViewGraph(map: MutableMap<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
-        val graph = CanvasView.Graph()
-        map.forEach { (vertex, neighbors) ->
-            graph.vertices.add(vertex)
-            neighbors.forEach { neighbor ->
-                graph.edges.add(CanvasView.Edge(vertex, neighbor))
-            }
-        }
-        return graph
-    }
-
-    private fun convertCanvasViewGraphToCanvasViewSCGraph(graph: CanvasView.Graph): CanvasViewSC.Graph {
-        val convertedGraph = CanvasViewSC.Graph()
-
-        // Csúcsok átalakítása
-        graph.vertices.forEach { vertex ->
-            convertedGraph.vertices.add(CanvasViewSC.Vertex(vertex.x, vertex.y))
-        }
-
-        // Élek átalakítása
-        graph.edges.forEach { edge ->
-            val startVertex = convertedGraph.vertices.find { it.x == edge.start.x && it.y == edge.start.y }
-            val endVertex = convertedGraph.vertices.find { it.x == edge.end.x && it.y == edge.end.y }
-
-            if (startVertex != null && endVertex != null) {
-                convertedGraph.edges.add(CanvasViewSC.Edge(startVertex, endVertex))
-            }
-        }
-
-        return convertedGraph
     }
 
     private fun drawSolutionOnImage() {

@@ -178,12 +178,6 @@ class CanvasView(context: Context, attrs: AttributeSet) : AbstractCanvasView(con
         }
     }
 
-    private fun pointLineDistance(point: Vertex, lineStart: Vertex, lineEnd: Vertex): Double {
-        val numerator = abs((lineEnd.y - lineStart.y) * point.x - (lineEnd.x - lineStart.x) * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
-        val denominator = sqrt((lineEnd.y - lineStart.y).pow(2) + (lineEnd.x - lineStart.x).pow(2))
-        return (numerator / denominator)
-    }
-
     private fun updateEndPointsIfNeeded(originalVertices: List<Vertex>, simplifiedVertices: List<Vertex>) {
         originalVertices.forEach { originalVertex ->
             if (DataHolder.endPoints.contains(originalVertex)) {
@@ -195,5 +189,11 @@ class CanvasView(context: Context, attrs: AttributeSet) : AbstractCanvasView(con
                 }
             }
         }
+    }
+
+    private fun pointLineDistance(point: Vertex, lineStart: Vertex, lineEnd: Vertex): Double {
+        val numerator = abs((lineEnd.y - lineStart.y) * point.x - (lineEnd.x - lineStart.x) * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
+        val denominator = sqrt((lineEnd.y - lineStart.y).pow(2) + (lineEnd.x - lineStart.x).pow(2))
+        return (numerator / denominator)
     }
 }

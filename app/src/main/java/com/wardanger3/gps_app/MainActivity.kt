@@ -29,6 +29,7 @@ import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderF
 import com.google.firebase.initialize
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.wardanger3.gps_app.manuals.IntroductionActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -47,6 +48,7 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
@@ -117,6 +119,32 @@ class MainActivity : FragmentActivity(), MapListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Ellenőrizzük, hogy ez az első indítás-e
+        val sharedPref = getSharedPreferences("MyAppPreferences", MODE_PRIVATE)
+        if (sharedPref.getBoolean("firstTime", true)) {
+            // A nyelvi beállítások alapján döntünk
+            val currentLocale = Locale.getDefault()
+            val languageCode = when (currentLocale.language) {
+                "en" -> "en"
+                "hu" -> "hu"
+                else -> "en" // Alapértelmezett nyelv
+            }
+
+            // Első indítás esetén átnavigálunk az IntroductionActivity-re és átadjuk a nyelvi kódot
+            val intent = Intent(this, IntroductionActivity::class.java).apply {
+                putExtra("LanguageCode", languageCode)
+            }
+            startActivity(intent)
+
+            // Állítsuk be, hogy már nem első az indítás
+            sharedPref.edit().putBoolean("firstTime", false).apply()
+
+            // Befejezzük a MainActivity-t, hogy ne jelenjen meg az IntroductionActivity mögött
+            finish()
+            return
+        }
+
         setContentView(R.layout.layout)
 
         Firebase.initialize(context = this)
@@ -313,6 +341,26 @@ class MainActivity : FragmentActivity(), MapListener {
         }
     }
 
+    private fun setLocale(languageCode: String) {
+        val locale = Locale(languageCode)
+        Locale.setDefault(locale)
+        val config = baseContext.resources.configuration
+        config.setLocale(locale)
+        baseContext.createConfigurationContext(config)
+        baseContext.resources.updateConfiguration(config, baseContext.resources.displayMetrics)
+
+        // Nyelv mentése SharedPreferences-be
+        val editor = getSharedPreferences("Settings", MODE_PRIVATE).edit()
+        editor.putString("My_Lang", languageCode)
+        editor.apply()
+    }
+
+    private fun startIntroductionActivity(languageCode: String) {
+        val intent = Intent(this, IntroductionActivity::class.java)
+        intent.putExtra("Language", languageCode)
+        startActivity(intent)
+    }
+
     private fun loadBannerAd() {
         MobileAds.initialize(this) {}
         mAdView = findViewById(R.id.adView)
@@ -334,7 +382,7 @@ class MainActivity : FragmentActivity(), MapListener {
 
     private fun isZoomLevelAppropriate(mode: String, zoomLevel: Double): Boolean {
         return when (mode) {
-            "complex" -> zoomLevel >= 14.6
+            "complex" -> zoomLevel >= 14.4
             "simple" -> zoomLevel >= 14.4
             else -> false
         }
@@ -371,7 +419,7 @@ class MainActivity : FragmentActivity(), MapListener {
         val overpassQuery = """
     [out:json];
     (
-        way["highway"~"motorway|trunk|primary|secondary|tertiary|unclassified|residential|service|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link|cycleway|footway|path"](${boundingBox.latSouth},${boundingBox.lonWest},${boundingBox.latNorth},${boundingBox.lonEast});
+        way["highway"](${boundingBox.latSouth},${boundingBox.lonWest},${boundingBox.latNorth},${boundingBox.lonEast});
     );
     out body;
     >;
@@ -486,7 +534,7 @@ class MainActivity : FragmentActivity(), MapListener {
     }
 
     private fun subdivideWay(nodes: List<Vertex>): List<Vertex> {
-        val segmentLength = 10.0 // 10 méteres szegmensekre osztás
+        val segmentLength = 15.0 // 15 méteres szegmensekre osztás
         val subdividedWay = mutableListOf<Vertex>()
         for (i in 0 until nodes.size - 1) {
             val start = nodes[i]

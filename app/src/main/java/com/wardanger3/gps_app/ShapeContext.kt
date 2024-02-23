@@ -40,8 +40,8 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
     }
 
     private fun createHistograms(logPolarCoordinates: List<LogPolarCoordinate>): List<Histogram> {
-        val numRadiusBins = 12
-        val numAngleBins = 20
+        val numRadiusBins = 4
+        val numAngleBins = 8
         return logPolarCoordinates.mapIndexed { index, coordinate ->
             val histogram = Histogram(numRadiusBins, numAngleBins)
             logPolarCoordinates.forEach { otherCoordinate ->
@@ -49,7 +49,7 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
                 val binAngle = determineBinAngle(coordinate.angle, otherCoordinate.angle, numAngleBins)
                 histogram.increment(binRadius, binAngle)
             }
-            Log.d("ShapeContext-SC", "Histogram for element $index: ${histogram.bins.contentDeepToString()}")
+            //Log.d("ShapeContext-SC", "Histogram for element $index: ${histogram.bins.contentDeepToString()}")
             histogram
         }
     }
@@ -88,12 +88,6 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
     }
 
     private fun determineBinRadius(radius1: Double, radius2: Double, numBinsRadius: Int): Int {
-
-        /*
-            Lehetséges, hogy a logbaset, kell beállítani tizedes jegyre ?
-            mondjuk ettől még fontos a binek és a padding megfelelő beállítása
-         */
-
         val logBase = 1.0
         val maxRadius = ln(1.0 + 1, logBase)
         val adjustedRadius1 = ln(radius1 + 1, logBase)
@@ -105,7 +99,7 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
 
     private fun determineBinAngle(angle1: Double, angle2: Double, numBinsAngle: Int): Int {
         val diffAngle = abs(angle1 - angle2)
-        val normalizedAngle = diffAngle / (2 * kotlin.math.PI) // Ez már jól normalizálja az értékeket
+        val normalizedAngle = diffAngle / (2 * kotlin.math.PI)
         return (normalizedAngle * numBinsAngle).toInt().coerceIn(0, numBinsAngle - 1)
     }
 
@@ -120,9 +114,7 @@ class ShapeContext(originalGraph: CanvasViewSC.Graph, transformedGraph: CanvasVi
         val maxY = graph.vertices.maxOf { it.y }
         val minY = graph.vertices.minOf { it.y }
 
-        // Az alakzat méretének kiszámítása
-        val diagonal = sqrt((maxX - minX).pow(2) + (maxY - minY).pow(2))
-        val padding = maxOf(1.0, diagonal * 0.20) // Dinamikus padding, legalább 1.2 vagy az átló 20%-a
+        val padding = 1.05
 
         val width = maxX - minX + 2 * padding
         val height = maxY - minY + 2 * padding
