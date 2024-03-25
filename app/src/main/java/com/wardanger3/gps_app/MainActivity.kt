@@ -165,10 +165,6 @@ class MainActivity : FragmentActivity(), MapListener {
         mMap.setMultiTouchControls(true)
         mMap.getLocalVisibleRect(Rect())
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION)
-        }
-
         // Alapértelmezett helyzet beállítása Európa középpontjára
         controller = mMap.controller
         val defaultLocation = org.osmdroid.util.GeoPoint(50.0, 15.0) // Európa középpontja
@@ -180,23 +176,7 @@ class MainActivity : FragmentActivity(), MapListener {
 
         mMyLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), mMap)
 
-        checkLocationPermissionAndStartLocationUpdates()
-
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // Permission not granted yet, display the dialog
-            AlertDialog.Builder(this)
-                .setTitle("Location Permission Needed")
-                .setMessage("This app collects location data to enable drawing on the map based on your current location. Please grant location permission.")
-                .setPositiveButton("OK") { dialog, which ->
-                    // Requesting the permissions
-                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION)
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
-        } else {
-            // We already have permission, start location updates
-            startLocationUpdates()
-        }
+        checkLocationPermissionAndInformUser()
 
         mMyLocationOverlay.runOnFirstFix {
             runOnUiThread {
@@ -341,24 +321,30 @@ class MainActivity : FragmentActivity(), MapListener {
         }
     }
 
-    private fun setLocale(languageCode: String) {
-        val locale = Locale(languageCode)
-        Locale.setDefault(locale)
-        val config = baseContext.resources.configuration
-        config.setLocale(locale)
-        baseContext.createConfigurationContext(config)
-        baseContext.resources.updateConfiguration(config, baseContext.resources.displayMetrics)
-
-        // Nyelv mentése SharedPreferences-be
-        val editor = getSharedPreferences("Settings", MODE_PRIVATE).edit()
-        editor.putString("My_Lang", languageCode)
-        editor.apply()
+    private fun checkLocationPermissionAndInformUser() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            // Tájékoztató dialog megjelenítése először
+            AlertDialog.Builder(this)
+                .setTitle("Location Permission Needed")
+                .setMessage("This app collects location data to enable drawing on the map based on your current location. Please grant location permission.")
+                .setPositiveButton("OK") { dialog, which ->
+                    // Requesting the permissions
+                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION)
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        } else {
+            // Ha már rendelkezünk az engedéllyel, folytathatjuk a helyzetmeghatározást
+            startLocationUpdates()
+        }
     }
 
-    private fun startIntroductionActivity(languageCode: String) {
-        val intent = Intent(this, IntroductionActivity::class.java)
-        intent.putExtra("Language", languageCode)
-        startActivity(intent)
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_LOCATION && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            // Helyzetmeghatározás indítása, ha az engedélyt megadták
+            startLocationUpdates()
+        }
     }
 
     private fun loadBannerAd() {
@@ -395,16 +381,6 @@ class MainActivity : FragmentActivity(), MapListener {
         } else {
             // Helyzetmeghatározás indítása
             startLocationUpdates()
-        }
-    }
-
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_LOCATION) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Helyzetmeghatározás indítása, ha az engedély megadásra került
-                startLocationUpdates()
-            }
         }
     }
 

@@ -17,7 +17,7 @@
     <application
         android:largeHeap="true"
         android:hardwareAccelerated="true"
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:icon="@mipmap/ic_launcher"
@@ -109,5 +109,7 @@
             android:name="com.google.android.gms.ads.APPLICATION_ID"
             android:value="ca-app-pub-3940256099942544~3347511713"/>
         <!-- 5856401808246306~4748234492 -->
+        ca-app-pub-5856401808246306~4748234492
+        ca-app-pub-5856401808246306~4748234492
     </application>
 </manifest>

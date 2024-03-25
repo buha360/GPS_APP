@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:background="@drawable/custom_button_green"
-        android:text="@string/go"
+        android:text="Következő"
         android:textColor="#00ff7b"
         app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -38,8 +38,8 @@
 
     <TextView
         android:id="@+id/textView"
-        android:layout_width="374dp"
-        android:layout_height="133dp"
+        android:layout_width="380dp"
+        android:layout_height="149dp"
         android:text="Miután átértünk a rajzoló felületre, három gombot láthatunk az alsó részen. Ezek a törlés (clear), mentés (save), és vissza (back) funkciókat biztosítják."
         android:textAlignment="center"
         android:textColor="@color/white"

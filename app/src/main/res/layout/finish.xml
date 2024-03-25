@@ -104,7 +104,7 @@
         android:layout_alignParentBottom="true"
         android:layout_centerHorizontal="true"
         app:adSize="BANNER"
-        app:adUnitId="ca-app-pub-3940256099942544/6300978111"
+        app:adUnitId="ca-app-pub-5856401808246306/6477971337"
         app:layout_constraintBottom_toBottomOf="@+id/bottomAppBar2"
         app:layout_constraintEnd_toEndOf="@+id/bottomAppBar2"
         app:layout_constraintHorizontal_bias="0.494"

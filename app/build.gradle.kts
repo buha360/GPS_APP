@@ -12,8 +12,8 @@ android {
         applicationId = "com.wardanger3.gps_app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 8
-        versionName = "1.0.7"
+        versionCode = 16
+        versionName = "1.1.3"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -65,7 +65,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.compose.ui:ui:1.6.1")
+    implementation("androidx.compose.ui:ui:1.6.2")
     implementation("com.github.skydoves:colorpicker-compose:1.0.7")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("com.github.jillesvangurp.overpass-kotlin-client:overpass-kotlin-client:v0.2")

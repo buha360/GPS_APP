@@ -12,7 +12,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|center_horizontal"
         android:background="@drawable/custom_button_green"
-        android:text="@string/go"
+        android:text="Következő"
         android:textColor="#00ff7b"
         app:backgroundTint="@null"
         app:layout_constraintBottom_toBottomOf="parent"

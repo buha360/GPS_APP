@@ -16,7 +16,14 @@ class IntroductionActivity4 : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.manual4)
+
+        // Layout kiválasztása a nyelvi kód alapján
+        val layoutResId = when (intent.getStringExtra("LanguageCode")) {
+            "hu" -> R.layout.manual4hun
+            else -> R.layout.manual4
+        }
+
+        setContentView(layoutResId)
 
         // Teljes képernyős mód beállítása + navigációs sáv elrejtése
         window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
