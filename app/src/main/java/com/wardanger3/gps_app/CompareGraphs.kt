@@ -5,6 +5,7 @@ import java.util.PriorityQueue
 import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.sqrt
+import kotlin.random.Random
 
 class CompareGraph {
 
@@ -162,8 +163,6 @@ class CompareGraph {
         return trimmedGraph
     }
 
-    /*
-    eredeti
     private fun buildCompletePath(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
         val completeGraph = CanvasView.Graph()
         val currentPathSegment = mutableListOf<CanvasView.Vertex>()
@@ -182,48 +181,31 @@ class CompareGraph {
             if (i < matches.size - 1 && !isStartMatched) {
                 // Csak akkor folytatja az útvonalat, ha nem egy új objektum kezdete
                 val end = matches[i + 1].second
-                val pathSegment = findBestPathInLargeGraph(largeGraph, start, end)
-                currentPathSegment.addAll(pathSegment)
-            }
-        }
+                var shortestPathSegment: List<CanvasView.Vertex> = emptyList()
+                var shortestPathLength = Double.POSITIVE_INFINITY
 
-        if (currentPathSegment.isNotEmpty()) {
-            addPathSegmentToGraph(currentPathSegment, completeGraph)
-        }
+                for (attempt in 1..5) {
+                    var pathSegment = findBestPathInLargeGraph(largeGraph, start, end)
 
-        return removeUnwantedEdges(completeGraph)
-    }
-    */
+                    if (pathSegment.isEmpty()) {
+                        // Nincs közvetlen útvonal, alternatívák keresése
+                        val alternatives = findAlternativeEndpoints(largeGraph, end)
+                        for (alternativeEnd in alternatives) {
+                            pathSegment = findBestPathInLargeGraph(largeGraph, start, alternativeEnd)
+                            if (pathSegment.isNotEmpty()) break // Megtaláltuk az alternatív útvonalat
+                        }
+                    }
 
-    private fun buildCompletePath(matches: List<Pair<CanvasView.Vertex, CanvasView.Vertex>>, largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>): CanvasView.Graph {
-        val completeGraph = CanvasView.Graph()
-        val currentPathSegment = mutableListOf<CanvasView.Vertex>()
-
-        for (i in matches.indices) {
-            val start = matches[i].second
-            val isStartMatched = DataHolder.matchedEndPoints.any { it.second == start }
-
-            if (isStartMatched && currentPathSegment.isNotEmpty()) {
-                // Zárja le az aktuális szegmentumot, ha új objektum kezdődik
-                addPathSegmentToGraph(currentPathSegment, completeGraph)
-                currentPathSegment.clear()
-            }
-            currentPathSegment.add(start)
-
-            if (i < matches.size - 1 && !isStartMatched) {
-                // Csak akkor folytatja az útvonalat, ha nem egy új objektum kezdete
-                val end = matches[i + 1].second
-                var pathSegment = findBestPathInLargeGraph(largeGraph, start, end)
-
-                if (pathSegment.isEmpty()) {
-                    // Nincs közvetlen útvonal, alternatívák keresése
-                    val alternatives = findAlternativeEndpoints(largeGraph, end)
-                    for (alternativeEnd in alternatives) {
-                        pathSegment = findBestPathInLargeGraph(largeGraph, start, alternativeEnd)
-                        if (pathSegment.isNotEmpty()) break // Megtaláltuk az alternatív útvonalat
+                    if (pathSegment.isNotEmpty()) {
+                        val pathLength = calculatePathLength(pathSegment)
+                        if (pathLength < shortestPathLength) {
+                            shortestPathSegment = pathSegment
+                            shortestPathLength = pathLength
+                        }
                     }
                 }
-                currentPathSegment.addAll(pathSegment)
+
+                currentPathSegment.addAll(shortestPathSegment)
             }
         }
 
@@ -232,48 +214,6 @@ class CompareGraph {
         }
 
         return removeUnwantedEdges(completeGraph)
-    }
-
-    private fun addPathSegmentToGraph(pathSegment: List<CanvasView.Vertex>, graph: CanvasView.Graph) {
-        pathSegment.forEach { vertex ->
-            graph.vertices.add(vertex)
-        }
-
-        for (j in 0 until pathSegment.size - 1) {
-            val pathStart = pathSegment[j]
-            val pathEnd = pathSegment[j + 1]
-            graph.edges.add(CanvasView.Edge(pathStart, pathEnd))
-        }
-    }
-
-    private fun findAlternativeEndpoints(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, originalGoal: CanvasView.Vertex): List<CanvasView.Vertex> {
-        // Távolság alapján rendezett csúcsok és távolságuk listája
-        val distances = largeGraph.keys.map { vertex ->
-            vertex to calculateDistance(vertex, originalGoal)
-        }.sortedBy { it.second }
-
-        // Visszaadjuk a legközelebbi 15 pontot, kihagyva az eredeti célpontot, ha szerepel a listában
-        return distances.filter { it.first != originalGoal }.map { it.first }.take(15)
-    }
-
-    private fun calculateDistance(point1: CanvasView.Vertex, point2: CanvasView.Vertex): Double {
-        val dx = point2.x - point1.x
-        val dy = point2.y - point1.y
-        return sqrt(dx * dx + dy * dy)
-    }
-
-    private fun removeUnwantedEdges(graph: CanvasView.Graph): CanvasView.Graph {
-        val edgesToRemove = mutableListOf<CanvasView.Edge>()
-
-        for (edge in graph.edges) {
-            // Ellenőrizzük, hogy az él kezdő- vagy végpontja szerepel-e az endPoints listában
-            if (CanvasView.DataHolder.endPoints.contains(edge.start) || CanvasView.DataHolder.endPoints.contains(edge.end)) {
-                edgesToRemove.add(edge)
-            }
-        }
-
-        graph.edges.removeAll(edgesToRemove)
-        return graph
     }
 
     private fun findBestPathInLargeGraph(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, start: CanvasView.Vertex, goal: CanvasView.Vertex): List<CanvasView.Vertex> {
@@ -287,8 +227,8 @@ class CompareGraph {
             return emptyList()
         }
 
-        // Heurisztika: Manhatta távolság a célcsúcshoz
-        val heuristic = { vertex: CanvasView.Vertex -> calculateManhattanDistance(vertex, goal) }
+        // Heurisztika: Manhatta távolság a célcsúcshoz + véletlenszerű érték
+        val heuristic = { vertex: CanvasView.Vertex -> calculateManhattanDistance(vertex, goal) + Random.nextDouble(0.0, 1.0) }
         val openList = PriorityQueue<AStarNode>()
         val closedSet = mutableSetOf<CanvasView.Vertex>()
         val gValues = largeGraph.keys.associateWith { Double.POSITIVE_INFINITY }.toMutableMap()
@@ -321,6 +261,56 @@ class CompareGraph {
         }
 
         return emptyList() // Nem talált útvonal
+    }
+
+    private fun calculatePathLength(pathSegment: List<CanvasView.Vertex>): Double {
+        var length = 0.0
+        for (i in 0 until pathSegment.size - 1) {
+            length += calculateManhattanDistance(pathSegment[i], pathSegment[i + 1])
+        }
+        return length
+    }
+
+    private fun addPathSegmentToGraph(pathSegment: List<CanvasView.Vertex>, graph: CanvasView.Graph) {
+        pathSegment.forEach { vertex ->
+            graph.vertices.add(vertex)
+        }
+
+        for (j in 0 until pathSegment.size - 1) {
+            val pathStart = pathSegment[j]
+            val pathEnd = pathSegment[j + 1]
+            graph.edges.add(CanvasView.Edge(pathStart, pathEnd))
+        }
+    }
+
+    private fun findAlternativeEndpoints(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, originalGoal: CanvasView.Vertex): List<CanvasView.Vertex> {
+        // Távolság alapján rendezett csúcsok és távolságuk listája
+        val distances = largeGraph.keys.map { vertex ->
+            vertex to calculateDistance(vertex, originalGoal)
+        }.sortedBy { it.second }
+
+        // Visszaadjuk a legközelebbi 15 pontot, kihagyva az eredeti célpontot, ha szerepel a listában
+        return distances.filter { it.first != originalGoal }.map { it.first }.take(10)
+    }
+
+    private fun calculateDistance(point1: CanvasView.Vertex, point2: CanvasView.Vertex): Double {
+        val dx = point2.x - point1.x
+        val dy = point2.y - point1.y
+        return sqrt(dx * dx + dy * dy)
+    }
+
+    private fun removeUnwantedEdges(graph: CanvasView.Graph): CanvasView.Graph {
+        val edgesToRemove = mutableListOf<CanvasView.Edge>()
+
+        for (edge in graph.edges) {
+            // Ellenőrizzük, hogy az él kezdő- vagy végpontja szerepel-e az endPoints listában
+            if (CanvasView.DataHolder.endPoints.contains(edge.start) || CanvasView.DataHolder.endPoints.contains(edge.end)) {
+                edgesToRemove.add(edge)
+            }
+        }
+
+        graph.edges.removeAll(edgesToRemove)
+        return graph
     }
 
     private fun findClosestPoints(largeGraph: Map<CanvasView.Vertex, MutableList<CanvasView.Vertex>>, transformedGraph: CanvasView.Graph): MutableList<Pair<CanvasView.Vertex, CanvasView.Vertex>> {

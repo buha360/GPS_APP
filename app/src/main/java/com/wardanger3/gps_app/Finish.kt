@@ -17,9 +17,6 @@ import com.wardanger3.gps_app.interfaces.IFinish
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
-import com.google.firebase.Firebase
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.analytics.analytics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -33,7 +30,6 @@ class Finish : AppCompatActivity(), IFinish {
     private lateinit var bitmap: Bitmap
     private lateinit var imageView: ImageView
     private lateinit var mAdView : AdView
-    private lateinit var firebaseAnalytics: FirebaseAnalytics
 
     private var transformedGraphColor by Delegates.notNull<Int>()
     private var currentDisplayMode = IFinish.DisplayMode.Both
@@ -45,8 +41,6 @@ class Finish : AppCompatActivity(), IFinish {
 
         // Teljes képernyős mód beállítása + navigációs sáv elrejtése
         window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
-
-        firebaseAnalytics = Firebase.analytics
 
         loadBannerAd()
 

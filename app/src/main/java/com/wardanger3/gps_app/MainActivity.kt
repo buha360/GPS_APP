@@ -1,8 +1,7 @@
 package com.wardanger3.gps_app
 
-import android.Manifest
+import android.app.AlertDialog
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -13,20 +12,12 @@ import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.Toast
-import androidx.appcompat.app.AlertDialog
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdView
 import com.google.android.gms.ads.MobileAds
-import com.google.firebase.Firebase
 import com.google.firebase.FirebaseApp
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.analytics.analytics
-import com.google.firebase.appcheck.appCheck
-import com.google.firebase.appcheck.playintegrity.PlayIntegrityAppCheckProviderFactory
-import com.google.firebase.initialize
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.wardanger3.gps_app.manuals.IntroductionActivity
@@ -41,8 +32,6 @@ import org.osmdroid.events.ZoomEvent
 import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.gestures.RotationGestureOverlay
-import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
-import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -73,7 +62,6 @@ class MainActivity : FragmentActivity(), MapListener {
 
     companion object {
         const val EARTH_RADIUS = 6371000 // A Föld sugara méterben
-        private const val REQUEST_LOCATION = 1
         var onGraphBuildCompleteListener: (() -> Unit)? = null
     }
 
@@ -94,9 +82,7 @@ class MainActivity : FragmentActivity(), MapListener {
     private lateinit var mRotationGestureOverlay: RotationGestureOverlay
     private lateinit var mMap: MapView
     private lateinit var controller: IMapController
-    private lateinit var mMyLocationOverlay: MyLocationNewOverlay
     private lateinit var mAdView : AdView
-    private lateinit var firebaseAnalytics: FirebaseAnalytics
 
     object DataHolder {
         var mapZoomLevel: Double? = null
@@ -120,8 +106,10 @@ class MainActivity : FragmentActivity(), MapListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Ellenőrizzük, hogy ez az első indítás-e
         val sharedPref = getSharedPreferences("MyAppPreferences", MODE_PRIVATE)
+        val editor = sharedPref.edit()
+
+        // Ellenőrizzük, hogy ez az első indítás-e
         if (sharedPref.getBoolean("firstTime", true)) {
             // A nyelvi beállítások alapján döntünk
             val currentLocale = Locale.getDefault()
@@ -135,25 +123,17 @@ class MainActivity : FragmentActivity(), MapListener {
             val intent = Intent(this, IntroductionActivity::class.java).apply {
                 putExtra("LanguageCode", languageCode)
             }
+
             startActivity(intent)
 
-            // Állítsuk be, hogy már nem első az indítás
-            sharedPref.edit().putBoolean("firstTime", false).apply()
-
-            // Befejezzük a MainActivity-t, hogy ne jelenjen meg az IntroductionActivity mögött
-            finish()
+            editor.putBoolean("firstTime", false)
+            editor.apply()
             return
         }
 
         setContentView(R.layout.layout)
 
-        Firebase.initialize(context = this)
-        Firebase.appCheck.installAppCheckProviderFactory(
-            PlayIntegrityAppCheckProviderFactory.getInstance(),
-        )
-
         FirebaseApp.initializeApp(this)
-        firebaseAnalytics = Firebase.analytics
 
         Configuration.getInstance().load(
             applicationContext,
@@ -169,36 +149,10 @@ class MainActivity : FragmentActivity(), MapListener {
         controller = mMap.controller
         val defaultLocation = org.osmdroid.util.GeoPoint(50.0, 15.0) // Európa középpontja
         mMap.setExpectedCenter(defaultLocation)
-        mMap.controller.setZoom(5.5) // 5.5-ös zoom szint
+        mMap.controller.setZoom(4.5) // 4.5-ös zoom szint
 
         // Zoom vezérlők kikapcsolása
         mMap.setBuiltInZoomControls(false)
-
-        mMyLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), mMap)
-
-        checkLocationPermissionAndInformUser()
-
-        mMyLocationOverlay.runOnFirstFix {
-            runOnUiThread {
-                controller.setCenter(mMyLocationOverlay.myLocation)
-                controller.setZoom(7.0) // vagy egyéb kívánt zoom szint
-
-                // Az ikon és a helyzetkövetés eltávolítása a térképről
-                mMyLocationOverlay.disableMyLocation()
-                mMyLocationOverlay.disableFollowLocation()
-                mMap.overlays.remove(mMyLocationOverlay) // Ez eltávolítja az ikont
-            }
-        }
-
-        mMyLocationOverlay.enableMyLocation()
-        mMyLocationOverlay.enableFollowLocation()
-        mMyLocationOverlay.isDrawAccuracyEnabled = true
-        mMyLocationOverlay.runOnFirstFix {
-            runOnUiThread {
-                controller.setCenter(mMyLocationOverlay.myLocation)
-                controller.animateTo(mMyLocationOverlay.myLocation)
-            }
-        }
 
         // Létrehozás és beállítás
         mRotationGestureOverlay = RotationGestureOverlay(mMap)
@@ -207,7 +161,6 @@ class MainActivity : FragmentActivity(), MapListener {
         // Hozzáadás a MapView-hoz
         mMap.overlays.add(mRotationGestureOverlay)
 
-        mMap.overlays.add(mMyLocationOverlay)
         mMap.addMapListener(this)
 
         // Teljes képernyős mód beállítása + navigációs sáv elrejtése
@@ -225,8 +178,9 @@ class MainActivity : FragmentActivity(), MapListener {
         val buttonComplex: Button = findViewById(R.id.button_nextComplex)
         val buttonSimple: Button = findViewById(R.id.button_nextSimple)
 
-        button.isEnabled = false
+        button.isEnabled = true
 
+        // Zoom események kezelése
         mMap.addMapListener(object : MapListener {
             override fun onScroll(event: ScrollEvent?): Boolean {
                 return false
@@ -288,9 +242,10 @@ class MainActivity : FragmentActivity(), MapListener {
         }
 
         button.setOnClickListener {
+            button.isEnabled = selectedMode != null
+
             if ((selectedMode != null) && isZoomLevelAppropriate(selectedMode!!, mMap.zoomLevelDouble)) {
                 // A zoom szint megfelelő, folytatjuk a műveleteket
-
                 button.isEnabled = false
                 button.background = ContextCompat.getDrawable(this, R.drawable.custom_button_green)
                 button.setTextColor(Color.parseColor("#00ff7b"))
@@ -317,33 +272,28 @@ class MainActivity : FragmentActivity(), MapListener {
                         startActivity(intent)
                     }
                 }
+            } else {
+                // Check for toast if no mode selected and button disabled
+                if (selectedMode == null && !button.isEnabled) {
+                    val toast = Toast.makeText(this, "Pick a mode and zoom further!", Toast.LENGTH_SHORT)
+                    toast.show()
+                }
             }
         }
-    }
 
-    private fun checkLocationPermissionAndInformUser() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // Tájékoztató dialog megjelenítése először
+        // Ellenőrizzük, hogy a rajzolós oldal első indítása-e ez
+        if (sharedPref.getBoolean("firstTimeDrawingPage", true)) {
             AlertDialog.Builder(this)
-                .setTitle("Location Permission Needed")
-                .setMessage("This app collects location data to enable drawing on the map based on your current location. Please grant location permission.")
-                .setPositiveButton("OK") { dialog, which ->
-                    // Requesting the permissions
-                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION)
+                .setTitle("Choose a mode!")
+                .setMessage("Choose between the complex or simple modes! Simple mode offers an easy, immediate placement and is the easiest to use. Complex mode involves a sophisticated algorithm that is time-consuming. After selecting, zoom into a section of the road that appeals to you until the go button turns green in the center.")
+                .setPositiveButton("OK") { dialog, _ ->
+                    dialog.dismiss()
                 }
-                .setNegativeButton("Cancel", null)
                 .show()
-        } else {
-            // Ha már rendelkezünk az engedéllyel, folytathatjuk a helyzetmeghatározást
-            startLocationUpdates()
-        }
-    }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_LOCATION && grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-            // Helyzetmeghatározás indítása, ha az engedélyt megadták
-            startLocationUpdates()
+            // Jelöljük, hogy már a rajzolós oldalt is megnyitották először
+            editor.putBoolean("firstTimeDrawingPage", false)
+            editor.apply()
         }
     }
 
@@ -355,12 +305,12 @@ class MainActivity : FragmentActivity(), MapListener {
     }
 
     private fun updateSaveButtonState(button: Button, zoomLevel: Double, selectedMode: String?) {
-        if (selectedMode != null && isZoomLevelAppropriate(selectedMode, zoomLevel)) {
-            button.isEnabled = true
+        val isAppropriateZoomLevel = selectedMode != null && isZoomLevelAppropriate(selectedMode, zoomLevel)
+
+        if (isAppropriateZoomLevel) {
             button.background = ContextCompat.getDrawable(this, R.drawable.custom_button_green)
             button.setTextColor(Color.parseColor("#00ff7b"))
         } else {
-            button.isEnabled = false
             button.background = ContextCompat.getDrawable(this, R.drawable.custom_button_red)
             button.setTextColor(Color.parseColor("#ff0000"))
         }
@@ -372,22 +322,6 @@ class MainActivity : FragmentActivity(), MapListener {
             "simple" -> zoomLevel >= 14.4
             else -> false
         }
-    }
-
-    private fun checkLocationPermissionAndStartLocationUpdates() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // Engedély kérése
-            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION), REQUEST_LOCATION)
-        } else {
-            // Helyzetmeghatározás indítása
-            startLocationUpdates()
-        }
-    }
-
-    private fun startLocationUpdates() {
-        // Helyzetmeghatározás indításának logikája
-        mMyLocationOverlay.enableMyLocation()
-        mMyLocationOverlay.enableFollowLocation()
     }
 
     private fun fetchRoadsFromOverpass() {

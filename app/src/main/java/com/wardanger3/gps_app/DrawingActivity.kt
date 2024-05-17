@@ -1,6 +1,7 @@
 package com.wardanger3.gps_app
 
 import android.annotation.SuppressLint
+import android.app.AlertDialog
 import android.content.ContentValues
 import android.content.Intent
 import android.content.res.ColorStateList
@@ -26,9 +27,6 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
-import com.google.firebase.Firebase
-import com.google.firebase.analytics.FirebaseAnalytics
-import com.google.firebase.analytics.analytics
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
@@ -40,7 +38,6 @@ class DrawingActivity : AppCompatActivity() {
 
     private lateinit var mAdView: AdView
     private var mInterstitialAd: InterstitialAd? = null
-    private lateinit var firebaseAnalytics: FirebaseAnalytics
     private var isGraphBuilt = false
 
     @SuppressLint("MissingInflatedId")
@@ -50,8 +47,6 @@ class DrawingActivity : AppCompatActivity() {
 
         // Teljes képernyős mód beállítása + navigációs sáv elrejtése
         window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
-
-        firebaseAnalytics = Firebase.analytics
 
         loadBannerAd()
         loadInterAd()
@@ -152,6 +147,19 @@ class DrawingActivity : AppCompatActivity() {
                     startActivity(intent)
                 }
             }
+        }
+
+        val sharedPref = getSharedPreferences("MyAppPreferences", MODE_PRIVATE)
+        if (sharedPref.getBoolean("firstTimeSimple", true)) {
+            AlertDialog.Builder(this)
+                .setTitle("The Drawing Process!")
+                .setMessage("On this drawing page for the simple mode, you can create quick and easy drawings to overlay on the map. In the bottom right corner of the canvas, there is a red button that turns green once the map data has been loaded. Press it to view the data! After this, you can start drawing and simply press the save button to save your work.")
+                .setPositiveButton("OK") { dialog, _ ->
+                    dialog.dismiss()
+                }
+                .show()
+
+            sharedPref.edit().putBoolean("firstTimeSimple", false).apply()
         }
     }
 

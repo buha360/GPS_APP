@@ -5,8 +5,13 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
+import android.text.style.URLSpan
 import android.view.View
 import android.widget.Button
+import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -17,10 +22,6 @@ import com.wardanger3.gps_app.R
 class IntroductionActivity : AppCompatActivity() {
 
     private lateinit var buttonNext: Button
-
-    companion object {
-        private const val REQUEST_LOCATION = 1
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,8 +40,6 @@ class IntroductionActivity : AppCompatActivity() {
         // Teljes képernyős mód beállítása és navigációs sáv elrejtése
         window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION)
 
-        checkLocationPermissionAndInformUser()
-
         buttonNext = findViewById(R.id.buttonNext)
         buttonNext.setOnClickListener {
             val nextActivityClass = when (languageCode) {
@@ -51,21 +50,32 @@ class IntroductionActivity : AppCompatActivity() {
             intent.putExtra("LanguageCode", languageCode)
             startActivity(intent)
         }
-    }
 
-    private fun checkLocationPermissionAndInformUser() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
-            // Tájékoztató dialog megjelenítése először
-            AlertDialog.Builder(this)
-                .setTitle("Location Permission Needed")
-                .setMessage("This app requires access to your location to enable drawing on the map based on your current location even when the app is running in the background. We do not collect, transmit, or store your location data for any other purposes. Your location data is used exclusively within the app to provide and improve the service. No location data is shared with third parties or used for advertising purposes.\n")
-                .setPositiveButton("OK") { dialog, which ->
-                    ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.ACCESS_FINE_LOCATION),
-                        REQUEST_LOCATION
-                    )
-                }
-                .setNegativeButton("Cancel", null)
-                .show()
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Location access not required anymore")
+
+        val messageText = "Please note that location access is no longer necessary for the use of this application, as the feature requiring such access has been completely removed. We are committed to ensuring your privacy and optimizing app performance. Check out our Privacy Policy here: https://buha360.github.io/"
+        val spannableString = SpannableString(messageText)
+
+        val linkStart = messageText.indexOf("https://")
+        val linkEnd = messageText.length
+
+        spannableString.setSpan(
+            URLSpan("https://buha360.github.io/"),
+            linkStart,
+            linkEnd,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+
+        val textView = TextView(this).apply {
+            text = spannableString
+            movementMethod = LinkMovementMethod.getInstance()
         }
+
+        builder.setView(textView)
+        builder.setPositiveButton("OK") { dialog, _ ->
+            dialog.dismiss()
+        }
+        builder.show()
     }
 }
