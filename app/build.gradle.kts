@@ -12,8 +12,8 @@ android {
         applicationId = "com.wardanger3.gps_app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 34
-        versionName = "1.1.9.8.4"
+        versionCode = 35
+        versionName = "1.1.9.8.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
